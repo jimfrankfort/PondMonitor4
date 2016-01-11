@@ -25,31 +25,31 @@ int SysTmPoleContext;	// ID of timer used to poll system time
 #define SysTmPoleFreq 1000	// time polling frequency
 
 
-						//int ledEvent;
-						//------------------------ String arrays used by the Display class to support the user interface------------------------------
+	//int ledEvent;
+	//------------------------ String arrays used by the Display class to support the user interface------------------------------
 
-						/* these variables replaced by routines that read from SD card into reusable DisplayBuf
-						String Main_UI[4]=
-						{"SetUp,menu,---Set Up---,RTC   Temp_sensor  Flow_sensor",
-						"Row_2,menu,---2nd Display---,run2   set_time2   sensor_tst2   calibrate2",
-						"Row_3,menu,---3rd Display---,run3   set_time3   sensor_tst3   calibrate3",
-						"Row_4,menu,---4th Display---,Yes   No"};
+	/* these variables replaced by routines that read from SD card into reusable DisplayBuf
+	String Main_UI[4]=
+	{"SetUp,menu,---Set Up---,RTC   Temp_sensor  Flow_sensor",
+	"Row_2,menu,---2nd Display---,run2   set_time2   sensor_tst2   calibrate2",
+	"Row_3,menu,---3rd Display---,run3   set_time3   sensor_tst3   calibrate3",
+	"Row_4,menu,---4th Display---,Yes   No"};
 
-						String SetRTC_ui[5]=
-						{"Text,text,---RTC Setup---,Used to view/update the date, time, and day of week settings",
-						"Date,m--d----yy--U-D,---RTC Date---,01/01/2015  U/D",
-						"Time,H--M---U-D,---RTC Time---,01:01  U/D",
-						"DOW,a-------U-D,--RTC DOW--,Mon     U/D",
-						"action,menu,---Action---,Update   Cancel"};
+	String SetRTC_ui[5]=
+	{"Text,text,---RTC Setup---,Used to view/update the date, time, and day of week settings",
+	"Date,m--d----yy--U-D,---RTC Date---,01/01/2015  U/D",
+	"Time,H--M---U-D,---RTC Time---,01:01  U/D",
+	"DOW,a-------U-D,--RTC DOW--,Mon     U/D",
+	"action,menu,---Action---,Update   Cancel"};
 
-						String TempSensor_ui[2]=
-						{"Text1,text,---Tmp Sensor---,Used to find, name, and test temp sensors",
-						"action,menu,---Action---,Discover  Name  Test  Cancel"};
-						*/
+	String TempSensor_ui[2]=
+	{"Text1,text,---Tmp Sensor---,Used to find, name, and test temp sensors",
+	"action,menu,---Action---,Discover  Name  Test  Cancel"};
+	*/
 
-						//buffer used to  load/save string arrays used for Display object.  This is max 80 chr X 6 lines
+						//buffer used to  load/save string arrays used for Display object.  This is max 80 chr X 7 lines
 #define DisplayBufLen 100	// max len of strings in DisplayBuf
-String DisplayBuf[6];		// buffer used to work with DisplayArrays. Read/written from SD card by Display object
+String DisplayBuf[7];		// buffer used to work with DisplayArrays. Read/written from SD card by Display object
 							//merge test
 							/*String DisplayBuf[6]=
 							{"01234567890123456789012345678901234567890123456789012345678901234567890123456789",
@@ -1932,9 +1932,9 @@ void setup()
 	Display.DisplayStartStop(true);		// indicate that menu processing will occur. Tells main loop to pass key presses to the Menu
 	Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // Prepare main-UI display array and display the first line, mode is read only.
 
-																/*
-																set the RTC with starting point: mon 9/7/2015 @ 16:15
-																*/
+	/*
+	set the RTC with starting point: mon 9/7/2015 @ 16:15
+	*/
 
 	SysTm.Month = 9;
 	SysTm.Day = 7;
@@ -2004,6 +2004,7 @@ void loop()
 					if (Display.DisplaySelection == "Temp_sensor")
 					{
 						Serial.println(F("Main_UI-->SetUp-->Temp_sensor"));	//debug
+						Display.DisplaySetup(true, true, "tempsens", 2, DisplayBuf); // put up entry screen for temperature sensor display array and display the first line
 					}
 					else
 					{
@@ -2127,6 +2128,79 @@ void loop()
 			goto EndDisplayProcessing; //exit processing Display	
 		}
 
+		if (Display.DisplayName == "tempsens")
+		{
+			/*if here then processing TempSens
+			Text1,text,---Tmp Sensor---,Used to find, name, and test temp sensors
+			action,menu,---Action---,Discover  Name  Test  Cancel
+			*/
+			if (Display.DisplayLineName == "action")
+			{
+				if (Display.DisplaySelection == "Discover") 
+				{
+					Serial.println(F("TempSens-->Action-->Discover"));	//debug
+				}
+				else
+				if(Display.DisplaySelection == "SetUp")
+				{
+					Display.DisplaySetup(false, true, "Tsens1", 7, DisplayBuf); // Put up first temp sens setup display array and display the first line
+				}
+				else
+				if (Display.DisplaySelection == "Test")
+				{
+					Serial.println(F("TempSens-->Action-->Test"));	//debug
+				}
+				else
+				if(Display.DisplaySelection=="Cancel")
+				{
+					Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+				}
+				else
+				{
+					ErrorLog("error processing TempSens-->action: unrecognized DisplaySelection");
+					Serial.print(F("error processing TempSens-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
+	
+				}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}
+
+		if (Display.DisplayName == "TSens1")
+		{
+			/*if here then processing setup display array for temperature senser 1
+			Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1
+			IsOn,U-D---------C-,-On/Off status-,U/D Is on?  Y
+			tempAddr,U-D----CCCCCCCC-,----Address----,U/D    00000000
+			tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp
+			handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
+			rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
+			action,menu,---Action---,Next  Update-#1   Cancel
+			*/
+			if (Display.DisplayLineName == "action")
+			{
+				if (Display.DisplaySelection == "Next")
+				{
+					Serial.println(F("TSens1-->Action-->Next"));	//debug
+				}
+				else
+				if (Display.DisplaySelection == "Update-#1")
+				{
+					Serial.println(F("TSens1-->Action-->Update-#1"));	//debug
+				}
+				else
+				if (Display.DisplaySelection == "Cancel")
+				{
+					Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+					goto EndDisplayProcessing; //exit processing Display	
+				}
+				else
+				{
+					ErrorLog("error processing TSens1-->action: unrecognized DisplaySelection");
+					Serial.print(F("error processing TSens1-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
+				}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}
 
 		//Serial.println("----------------------------------------------------------");
 		//Serial.println(Display.DisplayName);
@@ -2135,6 +2209,7 @@ void loop()
 		//Serial.println("");
 
 		ErrorLog("error, unrecognized Display.DisplayName");	//should have recognized displayName
+		Serial.print(F("error, unrecognized Display.DisplayName=")); Serial.println(Display.DisplayName);
 	}	// end DisplayUserMadeSelection=true
 EndDisplayProcessing:	//target of goto. common exit for processing display array entries for object Display
 

@@ -1,0 +1,2 @@
+Text1,text,---Tmp Sensor---,Used to find, name, and test temp sensors
+action,menu,---Action---,Discover  SetUp  Test  Cancel
