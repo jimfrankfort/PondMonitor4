@@ -2004,7 +2004,7 @@ void loop()
 					if (Display.DisplaySelection == "Temp_sensor")
 					{
 						Serial.println(F("Main_UI-->SetUp-->Temp_sensor"));	//debug
-						Display.DisplaySetup(true, true, "tempsens", 2, DisplayBuf); // put up entry screen for temperature sensor display array and display the first line
+						Display.DisplaySetup(false, true, "tempsens", 4, DisplayBuf); // put up entry screen for temperature sensor display array and display the first line
 					}
 					else
 					{
@@ -2124,26 +2124,37 @@ void loop()
 				Serial.print((F("length="))); Serial.println(Display.DisplayLineName.length());
 
 			}
-			Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+			Display.DisplaySetup(false, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
 			goto EndDisplayProcessing; //exit processing Display	
 		}
 
 		if (Display.DisplayName == "tempsens")
 		{
-			/*if here then processing TempSens
-			Text1,text,---Tmp Sensor---,Used to find, name, and test temp sensors
-			action,menu,---Action---,Discover  Name  Test  Cancel
+			/*  Text1, text, -- - Tmp Sensor-- - , Used for actions efficting all temp sens
+				sensNum, U - D--# - O - Sens--#, --# of Sensors--, U / D  # - O - Sens = #
+				rate, U - D-------- - ### - , --Sample Rate--, U / D   Every 060s
+				action, menu, -- - Action-- - , Update  Cancel  Individual-Setup  Discover  Test
 			*/
 			if (Display.DisplayLineName == "action")
 			{
-				if (Display.DisplaySelection == "Discover") 
+				if (Display.DisplaySelection == "Update") 
 				{
-					Serial.println(F("TempSens-->Action-->Discover"));	//debug
+					Serial.println(F("TempSens-->Action-->Update"));	//debug
 				}
 				else
-				if(Display.DisplaySelection == "SetUp")
+				if(Display.DisplaySelection == "Cancel")
 				{
-					Display.DisplaySetup(false, true, "Tsens1", 7, DisplayBuf); // Put up first temp sens setup display array and display the first line
+					Display.DisplaySetup(false, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+				}
+				else
+				if (Display.DisplaySelection == "Individual-Setup")
+				{
+					Display.DisplaySetup(false, true, "TSens1", 6, DisplayBuf); // Put up first temp sens setup display array and display the first line
+				}
+				else
+				if(Display.DisplaySelection=="Discover")
+				{
+					Serial.println(F("TempSens-->Action-->Discover"));	//debug
 				}
 				else
 				if (Display.DisplaySelection == "Test")
@@ -2151,15 +2162,9 @@ void loop()
 					Serial.println(F("TempSens-->Action-->Test"));	//debug
 				}
 				else
-				if(Display.DisplaySelection=="Cancel")
-				{
-					Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
-				}
-				else
 				{
 					ErrorLog("error processing TempSens-->action: unrecognized DisplaySelection");
 					Serial.print(F("error processing TempSens-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
-	
 				}
 			}
 			goto EndDisplayProcessing; //exit processing Display
@@ -2173,8 +2178,7 @@ void loop()
 			tempAddr,U-D----CCCCCCCC-,----Address----,U/D    00000000
 			tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp
 			handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
-			rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
-			action,menu,---Action---,Next  Update-#1   Cancel
+			action,menu,---Action---,Next  Update-#1-Next   Cancel
 			*/
 			if (Display.DisplayLineName == "action")
 			{
@@ -2183,9 +2187,9 @@ void loop()
 					Serial.println(F("TSens1-->Action-->Next"));	//debug
 				}
 				else
-				if (Display.DisplaySelection == "Update-#1")
+				if (Display.DisplaySelection == "Update-#1-Next")
 				{
-					Serial.println(F("TSens1-->Action-->Update-#1"));	//debug
+					Serial.println(F("TSens1-->Action-->Update-#1-Next"));	//debug
 				}
 				else
 				if (Display.DisplaySelection == "Cancel")
