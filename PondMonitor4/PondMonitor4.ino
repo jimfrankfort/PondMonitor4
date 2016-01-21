@@ -2130,7 +2130,7 @@ void loop()
 
 		if (Display.DisplayName == "tempsens")
 		{
-			/*  Text1, text, -- - Tmp Sensor-- - , Used for actions efficting all temp sens
+			/*  Text1, text, -- - Tmp Sensor-- - , Used for actions effecting all temp sens
 				sensNum, U - D--# - O - Sens--#, --# of Sensors--, U / D  # - O - Sens = #
 				rate, U - D-------- - ### - , --Sample Rate--, U / D   Every 060s
 				action, menu, -- - Action-- - , Update  Cancel  Individual-Setup  Discover  Test
@@ -2185,10 +2185,14 @@ void loop()
 				if (Display.DisplaySelection == "Next")
 				{
 					Serial.println(F("TSens1-->Action-->Next"));	//debug
+					Display.DisplaySetup(false, true, "TSens2", 6, DisplayBuf);		//don't save anything and put up TSens2 dispaly array																			
 				}
 				else
 				if (Display.DisplaySelection == "Update-#1-Next")
 				{
+					// read variables from display array TSens1 into temp sensor variables
+					if (!(Display.DisplayWriteSD())) ErrorLog("error writing TSens1 to SD");	//save settings on SD
+					Display.DisplaySetup(false, true, "TSens2", 6, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
 					Serial.println(F("TSens1-->Action-->Update-#1-Next"));	//debug
 				}
 				else
