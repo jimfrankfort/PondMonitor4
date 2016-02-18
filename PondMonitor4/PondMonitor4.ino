@@ -47,7 +47,7 @@ int SysTmPoleContext;	// ID of timer used to poll system time
 	"action,menu,---Action---,Discover  Name  Test  Cancel"};
 	*/
 
-						//buffer used to  load/save string arrays used for Display object.  This is max 80 chr X 7 lines
+//buffer used to  load/save string arrays used for Display object.  This is max 80 chr X 7 lines
 #define DisplayBufLen 100	// max len of strings in DisplayBuf
 String DisplayBuf[7];		// buffer used to work with DisplayArrays. Read/written from SD card by Display object
 							//merge test
@@ -72,15 +72,31 @@ String DisplayBuf[7];		// buffer used to work with DisplayArrays. Read/written f
 							*/
 
 
-							/* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
-							/*
-							these are routines to help with logging errors.
-							*/
+/* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
+/*
+these are routines to log errors to Logs/errorlog.txt on the file on the SD card.  SD care is initialized in setup routine.  
+The error log entry includes system date, time, and log entry.
+*/
 void ErrorLog(String error)
 {
-	// will KISS for now
-	Serial.println(error);
+	// writes error to errorlog.  If not able to write to errorlog on SD card, writes to monitor
+	// open the file. note that only one file can be open at a time,
+	// so you have to close this one before opening another.
+	String errorLine = SysDateStr + " " + SysTmStr + ": " + error;	//form error line = system date, time, and error string
+	
+	SDfile = SD.open("log/errorlog.txt", FILE_WRITE);
 
+	if (SDfile) 
+	{
+		SDfile.println(errorLine);	//write system date, time, and error string
+		SDfile.close();
+		Serial.println(errorLine);	//debug
+	}
+	// if the file isn't open, print error on monitor:
+	else 
+	{
+		Serial.println(errorLine);
+	}
 }
 
 
@@ -136,7 +152,7 @@ int	LS_PollContext;	// ID of timer used to poll keypad
 int	LS_DebounceContext;	//ID of timer used to debounce keypad
 
 
-						//--------------------------Display Class Definition and Display Related Global Variables -----------------------------
+//--------------------------Display Class Definition and Display Related Global Variables -----------------------------
 class DisplayClass
 {
 	/*
