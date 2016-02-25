@@ -79,9 +79,9 @@ The error log entry includes system date, time, and log entry.
 */
 void ErrorLog(String error)
 {
-	// writes error to errorlog.  If not able to write to errorlog on SD card, writes to monitor
-	// open the file. note that only one file can be open at a time,
-	// so you have to close this one before opening another.
+	// writes error to errorlog.  If not able to write to errorlog, on SD card, writes to monitor and turns on LCD backlight strobe alarm.
+	// Note that only one file can be open at a time, so you have to close this one before opening another.
+	// Note, need to add transaction for SPI bus becuse SD card uses SPI bus and so do other devices on this system.
 	String errorLine = SysDateStr + " " + SysTmStr + ": " + error;	//form error line = system date, time, and error string
 	
 	SDfile = SD.open("log/errorlog.txt", FILE_WRITE);
@@ -96,6 +96,7 @@ void ErrorLog(String error)
 	else 
 	{
 		Serial.println(errorLine);
+		Display.LCDflashAlarm(true);	//turn on 'flash alarm' which blinks LCD backlight to get attention
 	}
 }
 
