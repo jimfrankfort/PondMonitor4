@@ -191,12 +191,11 @@ protected:
 	boolean DisplayInUse;	// if true, then the display array is in use.  Used by ProcessDisplay to only process key presses when Display is active. Needed because other parts of the program could be using the keypad.
 	int	DisplayLineCnt;		// count of lines in string matrix making up display array
 	int	DisplayIndex;		// index to DisplayLine being displayed
-#define MaxDisplayArrayLen 20	//max number of display line strings in a display array
+	#define MaxDisplayArrayLen 20	//max number of display line strings in a display array
 	String *DisplayPntr;	// pointer to String array that is the Display
 	int DisplayMode;	// TemplateLine is interpreted and this variable is set to indicate if the display line being process is Display=1, text=3, or other=2 (date,time, alphanumeric)
 	boolean DisplayReadOnly;	//display lines can sometimes be for input, sometimes just for display.  this variable is passed in  when the display deck is set up, and indicates if it is read only or read write
-
-#define DisplayDisplayLen 16	//length of the Display display, 16 chr.
+	#define DisplayDisplayLen 16	//length of the Display display, 16 chr.
 	String DisplayLine;	// storage of display line
 	String BlinkLine;	// string used by soft interrupt to make simulate a blinking cursor
 	String BlinkCursor;	// character used for cursor.  if read only= O else =*
@@ -233,7 +232,11 @@ public:
 	String DisplayLineTitle;	// title string for the DisplayLine.  used on 1st line of display
 	String DisplaySelection;	// option that the user selected in the DisplayLine
 	boolean DisplayUserMadeSelection;	// used to poll if Display result is ready to be read.  If true, result can be read by DisplayGetResult()
-
+	#define DimTimeout 6000			// number of milliseconds to wait with no key being pressed to turn off the LCD backlight
+	time_t	TimeToDim;			// used for elapsed time counter for dimming LCD backlight
+	boolean LCDbacklightOn;		// if true, then the backlight is on. Used for strobe alarm to get attention
+	#define	LCDstrobeRate	750	// strobe interval in milliseconds for LCD backlight alarm
+	//boolean	FlashAlarmIsOn;		// if true, then LCD backlight is strobing to get some attention
 	void DisplayStartStop(boolean action);	//Used to indicate that the Display is in use and that keypresses should be processed by the Display routines
 	void DisplaySetup(boolean isReadOnly, boolean readFromSD, String mnuName, int mnuLines, String *mnu); //sets up the Display.  needs to be passed the name, number of lines, and pointer to an array of strings (formatted as DisplayLines)
 	void ProcessDisplay(int KeyID); //Main processing routine for Display.  This is called after user has pressed a key (up, dn, rt, lt, or Select) that has been debounced by the LS_Key routines
@@ -245,6 +248,7 @@ public:
 	boolean DisplayGetSetChrs(String *ChrStr, String MnuLineName, boolean set);	// gets or sets a character string in the display line named MnuLineName in the current display array. If Set is true then sets value of ChrStr else gets value
 	boolean DisplaySetTxt(String *TxtStr, String MnuLineName);						// sets a text message in the display line named MnuLineName in the current display array. Get not needed as this is only for outputting messages
 	boolean DisplayWriteSD(void);													// writes the current display array to a file on the SD card.  Uses DisplayPntr, DisplayName, and DisplayLineCnt.  file is named DisplayName and is overwritten.  returns true if successful
+	void LCDflashAlarm(boolean TurnOn);												// starts/stops the LCD strobe alarm for major errors.  If true then turns on flash until key is hit
 
 																					//Methods for optimizing SCRAM by using program memory to store const strings. Actual const char * are declaired below outside of the class because I couldn't get them to work here.
 	String ProgMemLU(const char* LUwhich, unsigned int LUwhere, unsigned int LUlen);	// uses PROGMEM library to retrieve substrings of char arrays stored in program memory for RAM conservation
@@ -292,7 +296,8 @@ DisplayClass::DisplayClass(void)
 	//constructor
 	DisplayPos = 0;
 	DisplayLine = "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890012345678901234567890012345678901234567890";	//reserve 140 chr length
-
+	LCDbacklightOn = true;	// LCD backlight is on
+	//FlashAlarmIsOn = false;	// LCD strobe alarm is off
 };
 //------------------------------------------
 int DisplayClass::DisplayAdvPastSpace(String Mline, int Start)
@@ -1623,6 +1628,36 @@ boolean DisplayClass::DisplayWriteSD(void)
 	if (WriteStringArraySD(DisplayName, DisplayLineCnt, DisplayPntr)) return true; else return false;	//uses method external to Display class because of issues of class containing other classes in arduino's "simplified C/C++"
 }
 //------------------------------------------
+void DisplayClass::LCDflashAlarm(boolean TurnOn)
+{
+	//Routine to start/stop strobing backlight of LCD for alarm purposes. Will be turned off from main loop when key is pressed.
+	// Sets up the 'soft' interupt using the timer.every object.  The actual turn on/off of the backlight is done by the
+	// routine LCDflashAlarm, which is outside the Display class because of problems getting timer.every to point to a method within a class
+	static int		LCDalarmContext;
+	static boolean  LCDalarmOn = false;
+	if (TurnOn)
+	{
+		if (LCDalarmOn == false)	//only turn alarm on if not currently on
+		{
+			//start the timer polling at intervals to blink cursor
+			LCDalarmContext = Tmr.every((int)LCDstrobeRate, LCDflashAlarmtoggle, (void*)2);	// begin flashing backlight at LCDstrobeRate intervals. timer index = LCDalarmContext
+			LCDalarmOn = true;	// set flag so we know we are using the soft interrupt
+			lcd.noDisplay();	// turn off the backlight
+			LCDbacklightOn = false;	// saves the state of the backlight and is used by LCDflashAlarm
+		}
+	}
+	else
+	{
+		if (LCDalarmOn == true)	// only turn it off if it is currently on
+		{
+			Tmr.stop(LCDalarmContext);		// turn off the 'soft' interupt.  Index previously saved with call above
+			LCDalarmOn = false;
+			lcd.display();	// make sure the backlight is on
+			LCDbacklightOn = true;	// save the state
+		}
+	}
+}	
+//------------------------------------------
 void CursorBlinkIntRedirect(void* context)
 {
 	// this routine exists outside of the Display class because we can't use some timer.every method within a class in the .pde implementation.  Compiler cannot resolve which routine to call.
@@ -1703,6 +1738,24 @@ byte ReadStringArraySD(String Dname, byte Dlines)
 		// file didn't exist or didn't open
 		Serial.print(F("error in ReadStringArraySD, did not find file or could not open it. SDFile="));	Serial.println(filename);//change to error log in future
 		return 0;
+	}
+}
+//------------------------------------------
+void LCDflashAlarmtoggle(void* context)
+{
+	/* this routine exists outside of the Display class because we can't use some timer.every method within a class in the .pde implementation.  Compiler cannot resolve which routine to call.
+	 Uses LCD backlight to get attention in an error situation.  It strobes the backlight of the LCD.  strobing is turned off when
+	 any key is pressed.  This happens in the main loop.
+	*/
+	if (Display.LCDbacklightOn)
+	{
+		Display.LCDbacklightOn = false;	// flag that we are turning it off
+		lcd.noDisplay();					// turn backlight off
+	}
+	else
+	{
+		Display.LCDbacklightOn = true;	// flag that we are turning it on
+		lcd.display();					// turn backlight on
 	}
 }
 
@@ -1916,6 +1969,8 @@ void setup()
 	int tmp1 = 0, tmp2 = 0, tmp3 = 0;
 	String str1 = "string one", str2 = "string two", str3 = "string three";
 
+	Display.TimeToDim = now() + DimTimeout;	// set time to dim display if no key is hit
+
 	//initialize the SD library	
 	pinMode(53, OUTPUT);	//pin 53 = CS 
 
@@ -1980,11 +2035,31 @@ void loop()
 	Tmr.update();
 	if (ReadKey() != NO_KEY)
 	{
+		// key was pressed and debounced result is ready for processing
 		//Serial.println(LS_curKey);
+		if (!Display.LCDbacklightOn)
+		{
+			//backlight is off and key was hit, so turn on display.
+			//The display could be off because it was dimmed (because keypad not in use), or because of LCD strobe alarm.
+			// In either case, we want to turn it on and reset timers/alarm. 
+			lcd.display();	// turn on display
+			Display.TimeToDim = now() + DimTimeout;	//set next time to dim
+			Display.LCDbacklightOn = true;			// flag that the backlight is one
+			Display.LCDflashAlarm(false);			// this will turn off the flash alarm if it was on
+		}
+
 		Display.ProcessDisplay(LS_curKey);	// routine will process key only if DisplayInUse==true, global set by DisplayStartStop()	
 	}//if (ReadKey() != NO_KEY)
 
-
+	// check if time to dim the LCD because keypad is not in use
+	if (Display.LCDbacklightOn)
+	{
+		if (now() > Display.TimeToDim)
+		{
+			lcd.noDisplay();				// turn off display
+			Display.LCDbacklightOn = false;	// indicate LCD is dimmed
+		}
+	}
 
 	if (Display.DisplayUserMadeSelection == true)
 	{
