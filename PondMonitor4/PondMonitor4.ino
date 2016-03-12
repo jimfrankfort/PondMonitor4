@@ -71,35 +71,9 @@ String DisplayBuf[7];		// buffer used to work with DisplayArrays. Read/written f
 							"Text1,text,---Message---,Now is the time for all good men to come to the aid of their country"};
 							*/
 
-
-/* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
-/*
-these are routines to log errors to Logs/errorlog.txt on the file on the SD card.  SD care is initialized in setup routine.  
-The error log entry includes system date, time, and log entry.
-*/
-void ErrorLog(String error)
-{
-	// writes error to errorlog.  If not able to write to errorlog, on SD card, writes to monitor and turns on LCD backlight strobe alarm.
-	// Note that only one file can be open at a time, so you have to close this one before opening another.
-	// Note, need to add transaction for SPI bus becuse SD card uses SPI bus and so do other devices on this system.
-	String errorLine = SysDateStr + " " + SysTmStr + ": " + error;	//form error line = system date, time, and error string
-	
-	SDfile = SD.open("log/errorlog.txt", FILE_WRITE);
-
-	if (SDfile) 
-	{
-		SDfile.println(errorLine);	//write system date, time, and error string
-		SDfile.close();
-		Serial.println(errorLine);	//debug
-	}
-	// if the file isn't open, print error on monitor:
-	else 
-	{
-		Serial.println(errorLine);
-		Display.LCDflashAlarm(true);	//turn on 'flash alarm' which blinks LCD backlight to get attention
-	}
-}
-
+/* ---------------------------------------------- Stubs --------------------------------------------------*/
+void ErrorLog(String error);	// stub for routine to log errors
+		
 
 //----------------------------------------LS keypad related variables-----------------------------------------------
 //
@@ -114,9 +88,6 @@ void ErrorLog(String error)
 // ReadKey toggles the LS_KeyReady flag so that the code will see the key press only once.  Key releases are ignored.
 //
 // The library leverages the timer class to handle polling and debouncing
-
-//#include <inttypes.h>
-
 
 #define LS_AnalogPin  0			// analog pin 0 used by keypad
 #define LS_Key_Threshold  5		// variability around the analogue read value settings
@@ -1945,6 +1916,34 @@ void GetSysTime(void* context)
 }
 //------------------------------------------
 
+/* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
+/*
+these are routines to log errors to Logs/errorlog.txt on the file on the SD card.  SD care is initialized in setup routine.
+The error log entry includes system date, time, and log entry.
+*/
+void ErrorLog(String error)
+{
+	// writes error to errorlog.  If not able to write to errorlog, on SD card, writes to monitor and turns on LCD backlight strobe alarm.
+	// Note that only one file can be open at a time, so you have to close this one before opening another.
+	// Note, need to add transaction for SPI bus becuse SD card uses SPI bus and so do other devices on this system.
+	String errorLine = SysDateStr + " " + SysTmStr + ": " + error;	//form error line = system date, time, and error string
+
+	SDfile = SD.open("log/errorlog.txt", FILE_WRITE);
+
+	if (SDfile)
+	{
+		SDfile.println(errorLine);	//write system date, time, and error string
+		SDfile.close();
+		Serial.println(errorLine);	//debug
+	}
+	// if the file isn't open, print error on monitor:
+	else
+	{
+		Serial.println(errorLine);
+		Display.LCDflashAlarm(true);	//turn on 'flash alarm' which blinks LCD backlight to get attention
+	}
+}
+
 /* ---------------------------------------------- Memory Usage Routines ---------------------------------------*/
 extern unsigned int __bss_end;
 extern unsigned int __heap_start;
@@ -1970,7 +1969,21 @@ void setup()
 	int tmp1 = 0, tmp2 = 0, tmp3 = 0;
 	String str1 = "string one", str2 = "string two", str3 = "string three";
 
+	// display splash screen before getting under way
+	lcd.begin(16, 2);	//unclear why, but this is needed every time else setCursor(0,1) doesn't work....probably scope related.
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("PondMonitor");
+	lcd.setCursor(0, 1);
+	lcd.print("Ver 1.0");
+	delay(5000);	//delay 5 sec
+	lcd.noDisplay();
+	delay(5000);
+	lcd.display();
+	
+
 	Display.TimeToDim = now() + DimTimeout;	// set time to dim display if no key is hit
+	
 
 	//initialize the SD library	
 	pinMode(53, OUTPUT);	//pin 53 = CS 
@@ -1978,6 +1991,7 @@ void setup()
 	if (!SD.begin(53))
 	{
 		Serial.println(F("SD initialization failed!"));	// change to log in future
+		Display.LCDflashAlarm(true);					// serious error can't log it without SD! so flash LCD backlight
 	}
 	else
 	{
