@@ -3,7 +3,7 @@
  Created:	1/10/2016 6:59:04 PM
  Author:	jimfr
 */
-
+//adding something here to work around a reversion issue
 #include <inttypes.h>
 #include <Event.h>
 #include <Timer.h>
@@ -15,7 +15,7 @@
 #include <SD.h>				// library for SD card
 
 File SDfile;			// file object for accessing SD card
-Timer Tmr;	// timer object used for polling at timed intervals
+Timer Tmr;				// timer object used for polling at timed intervals
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);	// LCD display
 tmElements_t SysTm;		// system time
 String SysTmStr;		// system time as string, format HH:MM using 24 hr time. derived from SysTm
