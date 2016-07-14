@@ -72,10 +72,10 @@ String DisplayBuf[7];		// buffer used to work with DisplayArrays. Read/written f
 							*/
 
 
-							/* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
-							/*
-							these are routines to help with logging errors.
-							*/
+/* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
+/*
+these are routines to help with logging errors.
+*/
 void ErrorLog(String error)
 {
 	// writes error to errorlog.  If not able to write to errorlog, on SD card, writes to monitor and turns on LCD backlight strobe alarm.
