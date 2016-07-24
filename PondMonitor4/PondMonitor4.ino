@@ -25,52 +25,6 @@ int SysTmPoleContext;	// ID of timer used to poll system time
 #define SysTmPoleFreq 1000	// time polling frequency
 
 
-	//int ledEvent;
-	//------------------------ String arrays used by the Display class to support the user interface------------------------------
-
-	/* these variables replaced by routines that read from SD card into reusable DisplayBuf
-	String Main_UI[4]=
-	{"SetUp,menu,---Set Up---,RTC   Temp_sensor  Flow_sensor",
-	"Row_2,menu,---2nd Display---,run2   set_time2   sensor_tst2   calibrate2",
-	"Row_3,menu,---3rd Display---,run3   set_time3   sensor_tst3   calibrate3",
-	"Row_4,menu,---4th Display---,Yes   No"};
-
-	String SetRTC_ui[5]=
-	{"Text,text,---RTC Setup---,Used to view/update the date, time, and day of week settings",
-	"Date,m--d----yy--U-D,---RTC Date---,01/01/2015  U/D",
-	"Time,H--M---U-D,---RTC Time---,01:01  U/D",
-	"DOW,a-------U-D,--RTC DOW--,Mon     U/D",
-	"action,menu,---Action---,Update   Cancel"};
-
-	String TempSensor_ui[2]=
-	{"Text1,text,---Tmp Sensor---,Used to find, name, and test temp sensors",
-	"action,menu,---Action---,Discover  Name  Test  Cancel"};
-	*/
-
-//buffer used to  load/save string arrays used for Display object.  This is max 80 chr X 7 lines
-#define DisplayBufLen 100	// max len of strings in DisplayBuf
-String DisplayBuf[7];		// buffer used to work with DisplayArrays. Read/written from SD card by Display object
-							//merge test
-							/*String DisplayBuf[6]=
-							{"01234567890123456789012345678901234567890123456789012345678901234567890123456789",
-							"01234567890123456789012345678901234567890123456789012345678901234567890123456789",
-							"01234567890123456789012345678901234567890123456789012345678901234567890123456789",
-							"01234567890123456789012345678901234567890123456789012345678901234567890123456789",
-							"01234567890123456789012345678901234567890123456789012345678901234567890123456789",
-							"01234567890123456789012345678901234567890123456789012345678901234567890123456789"};
-							*/
-
-							/*
-							String menu3[7]=
-							{"mnu1,menu,---Main Menu---,Make-Mnu-R/W   Make-Mnu-R/O",
-							"Date1,m--d----yy--U-D,---Date Entry1---,11/29/1955  U/D",
-							"Time1,H--M---U-D,---Time Entry1---,13:27  U/D",
-							"Numeric1,-----##--U-D,---# Entry1---,Int= 00  U/D",
-							"Alpha1,--CCCCCCC--U-D,---Label 1---,--abcdefg  U/D",
-							"DOW,-a---a---U-D,--Day of Week--,-Mon-Tue-U/D",
-							"Text1,text,---Message---,Now is the time for all good men to come to the aid of their country"};
-							*/
-
 
 /* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
 /*
@@ -147,6 +101,25 @@ int	LS_DebounceContext;	//ID of timer used to debounce keypad
 
 
 //--------------------------Display Class Definition and Display Related Global Variables -----------------------------
+
+//buffer used to  load/save string arrays used for Display object.  This is max 80 chr X 7 lines
+#define DisplayBufLen 100	// max len of strings in DisplayBuf
+String DisplayBuf[7];		// buffer used to work with DisplayArrays. Read/written from SD card by Display object
+
+//-------------------------------------------
+//preset the strings used for data entry using the methods in the Display class.  
+//Defined here instead of in the class because I couldn't figure out how to get it to work within the variables declared for the class.
+//Note, these are stored in program memory to conserve space using DisplayClass::ProgMemLU and the PROGMEM ligrary.
+
+const char	DisplayDay[] PROGMEM = { "01020304050607080910111213141516171819202122232425262728293031" };	// day will advance 2 chr at a time
+const char DisplayMonth[] PROGMEM = { "010203040506070809101112" };	// month will advance 2 chr at a time
+const char DisplayYear[] PROGMEM = { "0123456789" };	// year will advance 1 chr at a time
+const char DisplayHour[] PROGMEM = { "000102030405060708091011121314151617181920212223" };	//hour will advance 2 chr at a time
+const char DisplayMin[] PROGMEM = { "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960" };	// Min will advance 2 chr at a time
+const char DisplayNum[] PROGMEM = { "0123456789" };	// numbers advance 1 chr at a time
+const char DisplayChar[] PROGMEM = { "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_$%&" };	//alpha numeric characters will advance 1 at a time
+const char DisplayDOW[] PROGMEM = { "MonTueWedThuFriSatSun" };
+
 class DisplayClass
 {
 	/*
@@ -244,19 +217,7 @@ public:
 
 } Display;
 
-//-------------------------------------------
-//preset the strings used for data entry using the methods in the Display class.  
-//Defined here instead of in the class because I couldn't figure out how to get it to work within the variables declared for the class.
-//Note, these are stored in program memory to conserve space using DisplayClass::ProgMemLU and the PROGMEM ligrary.
 
-const char	DisplayDay[] PROGMEM = { "01020304050607080910111213141516171819202122232425262728293031" };	// day will advance 2 chr at a time
-const char DisplayMonth[] PROGMEM = { "010203040506070809101112" };	// month will advance 2 chr at a time
-const char DisplayYear[] PROGMEM = { "0123456789" };	// year will advance 1 chr at a time
-const char DisplayHour[] PROGMEM = { "000102030405060708091011121314151617181920212223" };	//hour will advance 2 chr at a time
-const char DisplayMin[] PROGMEM = { "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960" };	// Min will advance 2 chr at a time
-const char DisplayNum[] PROGMEM = { "0123456789" };	// numbers advance 1 chr at a time
-const char DisplayChar[] PROGMEM = { "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_$%&" };	//alpha numeric characters will advance 1 at a time
-const char	DisplayDOW[] PROGMEM = { "MonTueWedThuFriSatSun" };
 
 
 /*String DisplayDay[31]= {"01","02","03","04","05","06","07","08","09","10",
