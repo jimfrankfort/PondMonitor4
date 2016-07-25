@@ -1,4 +1,3 @@
-Text1,text,---Tmp Sensor---,Used for actions efficting all temp sens
-sensNum,U-D------------#,--# of Sensors--,U/D  #-O-Sens= 3
+Text1,text,---Tmp Sensor---,Functions related to temperature sensors
 rate,U-D---------###-,--Sample Rate--,U/D   Every 060s  
-action,menu,---Action---,Update  Cancel  Individual-Setup  Discover  Test
+action,menu,---Action---,Update  Cancel   Edit_0   Edit_1   Test_0   Test_1

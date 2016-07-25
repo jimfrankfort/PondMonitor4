@@ -1,4 +1,3 @@
-SetUp,menu,---Set Up---,RTC   Temp_sensor  Flow_sensor
-Row_2,menu,---2nd Display---,run2   set_time2   sensor_tst2   calibrate2
-Row_3,menu,---3rd Display---,run3   set_time3   sensor_tst3   calibrate3
-Row_4,menu,---4th Display---,Yes   No
+SetUp,menu,---Set Up---,Status   Temp_sensor  Flow_sensor   WaterLevel   RTC
+Pumps,menu,--Set Pump Pwr--,Auto   Off   On
+

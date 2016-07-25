@@ -13,42 +13,38 @@
 #include <DS1307RTC.h>		// library for RTC module
 #include <avr/pgmspace.h>	// library for memory optimization using flash mem
 #include <SD.h>				// library for SD card
+#include <OneWire.h>		// library for one-wire (I2C) bus used by temperature sensors
+#include <DallasTemperature.h>	// library for temperature sensors used
+#include <Timer.h>			// timer functions, used for all the soft interupts and taking actions at intervals
 
 File SDfile;			// file object for accessing SD card
-Timer Tmr;				// timer object used for polling at timed intervals
+Timer Tmr;				// timer object used for polling at timed intervals, used by keyboard routines and display class
+Timer SensTmr;			// timer object used for sensors (temp, flow, water level)
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);	// LCD display
-tmElements_t SysTm;		// system time
+tmElements_t SysTm;		// system time, used by RTC and time logic
 String SysTmStr;		// system time as string, format HH:MM using 24 hr time. derived from SysTm
 String SysDateStr;		// system date as string, format mm/dd/yyyy. derived from SysTm
 String sysDOWstr;		// system day of week as string, 3 chr length.
 int SysTmPoleContext;	// ID of timer used to poll system time
 #define SysTmPoleFreq 1000	// time polling frequency
 
+//---------------------------------------------------------------------------
+//			variables to control global state
+//---------------------------------------------------------------------------
+//flags determine which section of main loop code processes
+boolean	InMonitoringMode = true;	//if true, then system is in monitoring mode and sensors are sampled/recorded
+boolean TempSensorsOn, FlowSensorsOn, WaterLvlSensorsOn;	// sensors on/off for the purposes of monitoring.  Values read in from SysStat.txt.  User can change these with UI, but system reads state at startup
+String	PumpMode;											// relay state read in from SysStat.txt. Auto=controlled by water level sensor logic, on/off are manual 
+boolean InFlowSensTestMode = false;	// for testing and setup of flow sensors
+boolean InTempSensTestMode = false;	// for testing and setup of temperature sensor
+boolean InWaterLvlTestMode = false;	// for testing and setup of water level sensor
+boolean	TransmitReadings = false;	// if true, then system will radio sensor readings to companion system to upload to cloud
 
+/* variables to monitor duration of main loop.  Used to check if time used processing main loop exceeds nyquist frequency of polling sensors*/
+long MainLoopStartTime;
+long MainLoopEndTime;
+long MainLoopDurration;
 
-/* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
-/*
-these are routines to help with logging errors.
-*/
-void ErrorLog(String error)
-{
-	// writes error to errorlog.  If not able to write to errorlog, on SD card, writes to monitor and turns on LCD backlight strobe alarm.
-	// Note that only one file can be open at a time, so you have to close this one before opening another.
-	// Note, need to add transaction for SPI bus becuse SD card uses SPI bus and so do other devices on this system.
-	
-	String errorLine = SysDateStr + " " + SysTmStr + ": " + error;	//form error line = system date, time, and error string
-	// will KISS for now
-	Serial.println(error);
-	
-	SDfile = SD.open("log/errorlog.txt", FILE_WRITE);
-
-	if (SDfile) 
-	{
-		SDfile.println(errorLine);	//write system date, time, and error string
-		SDfile.close();
-		Serial.println(errorLine);	//debug
-	}
-}
 
 
 //----------------------------------------LS keypad related variables-----------------------------------------------
@@ -99,12 +95,36 @@ boolean LS_keyChanged;		// if true, key changed since last polling
 int	LS_PollContext;	// ID of timer used to poll keypad
 int	LS_DebounceContext;	//ID of timer used to debounce keypad
 
+/* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
+/*
+routines used to log errors to SD card. Used throught code /classes that follow
+*/
+void ErrorLog(String error)
+{
+	// writes error to errorlog.  If not able to write to errorlog, on SD card, writes to monitor and turns on LCD backlight strobe alarm.
+	// Note that only one file can be open at a time, so you have to close this one before opening another.
+	// Note, need to add transaction for SPI bus becuse SD card uses SPI bus and so do other devices on this system.
+
+	String errorLine = SysDateStr + " " + SysTmStr + ": " + error;	//form error line = system date, time, and error string
+																	// will KISS for now
+	Serial.println(error);
+
+	SDfile = SD.open("log/errorlog.txt", FILE_WRITE);
+
+	if (SDfile)
+	{
+		SDfile.println(errorLine);	//write system date, time, and error string
+		SDfile.close();
+		Serial.println(errorLine);	//debug
+	}
+}
+
 
 //--------------------------Display Class Definition and Display Related Global Variables -----------------------------
 
 //buffer used to  load/save string arrays used for Display object.  This is max 80 chr X 7 lines
 #define DisplayBufLen 100	// max len of strings in DisplayBuf
-String DisplayBuf[7];		// buffer used to work with DisplayArrays. Read/written from SD card by Display object
+String DisplayBuf[10];		// buffer used to work with DisplayArrays. Read/written from SD card by Display object
 
 //-------------------------------------------
 //preset the strings used for data entry using the methods in the Display class.  
@@ -158,7 +178,7 @@ protected:
 	boolean DisplayInUse;	// if true, then the display array is in use.  Used by ProcessDisplay to only process key presses when Display is active. Needed because other parts of the program could be using the keypad.
 	int	DisplayLineCnt;		// count of lines in string matrix making up display array
 	int	DisplayIndex;		// index to DisplayLine being displayed
-#define MaxDisplayArrayLen 20	//max number of display line strings in a display array
+#define MaxDisplayArrayLen 10	//max number of display line strings in a display array
 	String *DisplayPntr;	// pointer to String array that is the Display
 	int DisplayMode;	// TemplateLine is interpreted and this variable is set to indicate if the display line being process is Display=1, text=3, or other=2 (date,time, alphanumeric)
 	boolean DisplayReadOnly;	//display lines can sometimes be for input, sometimes just for display.  this variable is passed in  when the display deck is set up, and indicates if it is read only or read write
@@ -1860,15 +1880,175 @@ uint16_t getFreeSram() {
 		return (((uint16_t)&newVariable) - ((uint16_t)__brkval));
 };
 
+//-------------------------------------Dallas Temperature Sensor variables and class------------------------------
+
+#define ONE_WIRE_BUS 11	// data is on digital pin 11 of the arduino
+OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
+DallasTemperature sensors(&oneWire);	// Pass our oneWire reference to Dallas Temperature.
+
+//int numberOfDevices; // Number of temperature devices found
+
+//DeviceAddress tempDeviceAddress; // We'll use this variable to store a found device address
+
+class TempSensor
+{
+	/*
+	class for temp sensor.  Temp sensor uses I2C bus and is a DS18b20 temperature sensor.  This class handles set up, reading,
+	storage of info needed to display results in the cloud.  Polling is not handled by this class.....mostly because Arduino
+	limits this class using another class in an external library, specifically the Timer class.
+
+	*/
+protected:
+#define TEMPERATURE_PRECISION 9	// temp precision 9 bit
+#define TempSampleInterval 1000	// default sampling interval in ms
+	byte			Snum;			// number of the sensor device on the I2C buss
+	String			Sname;			// name of sensor to use with logs and displays
+	String			SIDstring;		// string of ID for sensor when used in cloud based data logging
+	DeviceAddress	Saddr;			// I2C address of the sensor
+	boolean			IsOn;			// true if activly taking sensor readings else false
+	int				PollInterval;	// polling interval
+	int				SensorPollContext;	//variable set by SensTmr and passed by code into SensTmr.  It is an index for the timer object
+public:
+	float	TempC;					// last temperature reading in celcius.	if -100 then not valid
+	float	TempF;					// last temperature reading in farenheight.  If-100 then not valid
+	boolean	TempSensReady;			// tells main loop that there is a temperature reading that is ready to be processed
+
+
+	void	TempSensorInit(byte SN);	//used like constructor because constructor syntax was not working ;-(.  passes in device #
+	void	TurnOn(boolean TurnOn);		//turn on/off flags and timers used to take readings at intervals
+	void	ReadTempSensor(void);		// called at polling intervals, reads the temp sensor, and sets results and flags indicating a reading is ready for use
+	void	SetPollInterval(int Delay);	//sets the poll interval, changes the poll interval if sensor IsOn=true	//boolean Locate(void);				// locates the temp sensor at Saddr, returns true if found else false
+										//float	ReadC(void);				// converts 
+										//float	ReadF(void);				// read value of sensor and return temp in degrees F
+	void	printAddress(void);			// prints the address in Saddr 
+} TempSens, InternalTempSens;
+
+/*--------------------------------------------------------------------------------------------------------------------
+methods for Temperature sensor class
+--------------------------------------------------------------------------------------------------------------------*/
+
+//----------------------------------------------------------------------
+void	TempSensor::TempSensorInit(byte SN)
+{
+	// constructor, 0 stuff out, find device address, set precision
+	IsOn = false;
+	Sname = SIDstring = "";
+	TempC = TempF = -100;	//preset to value indicating invalid temp...probably not needed because of TempSensReady
+	PollInterval = TempSampleInterval;	//default polling rate in MS
+	Snum = SN;
+	TempSensReady = false;	// tells main loop that the temperature readings are not ready to be read
+
+	if (sensors.getAddress(Saddr, SN))	// Search the I2C bus for address
+	{
+		//if true, device address in set in Saddr else error
+		Serial.print("Found device number= ");	//debug
+		Serial.print(Snum);	//debug
+		Serial.print(" with address: "); //debug
+										 //printAddress(tempDeviceAddress);
+		for (uint8_t i = 0; i < 8; i++)
+		{
+			if (Saddr[i] < 16) Serial.print("0");
+			Serial.print(Saddr[i], HEX);
+		}
+		Serial.println();
+
+		Serial.print("Setting resolution to ");
+		Serial.println(TEMPERATURE_PRECISION, DEC);
+		sensors.setResolution(Saddr, TEMPERATURE_PRECISION);// set the resolution to TEMPERATURE_PRECISION bit (Each Dallas/Maxim device is capable of several different resolutions)
+
+		Serial.print("Resolution actually set to: ");
+		Serial.print(sensors.getResolution(Saddr), DEC);
+		Serial.println();
+	}
+	else
+	{
+		Serial.print("Error, did not find temp sensor address");	//debug
+																	//add error log entry here
+	}
+}
+//----------------------------------------------------------------------
+void	TempSensor::TurnOn(boolean TurnOn)
+{
+
+	//if true, set Turn on sampling 
+	if (TurnOn)
+	{
+		//if here, then we want to turn on the polling for taking temperature readings.  We use SensTmr object of the Timer class
+		IsOn = true;	//flag that we are taking Temperature sensor readings
+		SensorPollContext = SensTmr.every(PollInterval, SensorPollRedirect, (void*)2);	// begin polling temp readings, call SensorPollRedirect at intervals of PollInterval. timer index = SensorPollContext
+	}
+	else
+	{
+		// turn off polling for temperature sensor readings
+		IsOn = false;	//flag that we are not taking temperature sensor readings
+		SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context
+	}
+};
+//----------------------------------------------------------------------
+void	TempSensor::ReadTempSensor(void)
+{
+	// called at polling intervals (SensorPollRedirect is called at intervals set up by TurnOn and calls the routing. See SensorPollRedirect for expalination of need for indirection
+	// This routine reads the temp sensor, and sets results and flags indicating a reading is ready for use
+
+	sensors.requestTemperatures(); // Send the command to get temperatures
+	if (sensors.requestTemperaturesByAddress(Saddr))
+	{
+		//if here, read ok so get result
+		TempC = sensors.getTempC(Saddr);
+		TempF = DallasTemperature::toFahrenheit(TempC);	//convert to farenheit
+		TempSensReady = true;	// tells main loop that temp is ready to read
+	}
+	else
+	{
+		//error in requesting temp reading
+		TempSensReady = false;	// not ready to read as there was a problem
+		Serial.println("unexpected error calling sensors.requestTemperaturesByAddress in TempSensor::ReadTempSensor");	//debug
+																														//errorLog here
+	}
+
+}
+//----------------------------------------------------------------------
+void	TempSensor::SetPollInterval(int Delay)
+{
+	//saves the poll interval, changes the poll interval if sensor IsOn=true
+	PollInterval = Delay;
+	if (IsOn)
+	{
+		SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context	
+		SensorPollContext = SensTmr.every(PollInterval, SensorPollRedirect, (void*)2);	// begin polling temp readings at new polling interval
+	}
+}
+//----------------------------------------------------------------------
+void	TempSensor::printAddress(void) 	// prints the address of temp sensor
+{
+	for (uint8_t i = 0; i < 8; i++)
+	{
+		if (Saddr[i] < 16) Serial.print("0");
+		Serial.print(Saddr[i], HEX);
+	}
+}
+//----------------------------------------------------------------------
+void SensorPollRedirect(void* context)
+{
+	// this routine exists outside of the Sensor class because we can't use some timer.every method within a class in the .pde implementation.  Compiler cannot resolve which routine to call.
+	TempSens.ReadTempSensor();
+	InternalTempSens.ReadTempSensor();
+}
+
 //--------------------------------------------------------Set Up --------------------------------------------------
 
 void setup()
 {
-	String Tst;
+	/*String Tst;
 	Serial.begin(9600);
 	boolean tstBool;
 	int tmp1 = 0, tmp2 = 0, tmp3 = 0;
 	String str1 = "string one", str2 = "string two", str3 = "string three";
+	*/
+	boolean tempBool;
+	String tempString;
+	String Str;
+	int tempInt, tempInt1;
 
 	// display splash screen before getting under way
 	lcd.begin(16, 2);	//unclear why, but this is needed every time else setCursor(0,1) doesn't work....probably scope related.
@@ -1878,13 +2058,10 @@ void setup()
 	lcd.setCursor(0, 1);
 	lcd.print("Ver 1.0");
 	delay(5000);	//delay 5 sec
-	lcd.noDisplay();
-	delay(5000);
-	lcd.display();
 
 
 	//initialize the SD library	
-	pinMode(53, OUTPUT);	//pin 53 = CS 
+	pinMode(53, OUTPUT);	//pin 53 = CS for SD card reader
 
 	if (!SD.begin(53))
 	{
@@ -1895,46 +2072,68 @@ void setup()
 		Serial.println(F("SD initialized ok."));	//change to log in future
 	}
 
-	/*testing
-	Tst="SetRTC_ui";
-	tstBool=WriteStringArraySD(Tst,5,SetRTC_ui);
-	Serial.println(F("calling ReadStringArray"));
-	tmp1=ReadStringArraySD(Tst,5);
-	Serial.print(F("returned from ReadStringArraySD=")); Serial.println(tmp1);
-	Tst="TempSensor_ui";
-	tstBool=WriteStringArraySD(Tst,2,TempSensor_ui);
-	Serial.println(F("calling ReadStringArray"));
-	tmp1=ReadStringArraySD(Tst,2);
-	Serial.print(F("returned from ReadStringArraySD=")); Serial.println(tmp1);
+	/*
+	get the monitoring state of sensors from SysStat.txt and set flags accordingly
+		SysStat.txt
+		text1,text,-System status-,Status of sensors and relays
+		Temp,U-D----------CCC,U/D  Temp is On
+		Flow,U-D----------CCC,U/D  Flow is On
+		Wlvl,U-D----------CCC,U/D  WLvl is On
+		Relay,U-D---------CCCC,U/D  Pumps@ Auto
+		action,menu,---Action---,Return
 	*/
+	Display.DisplaySetup(true, true, "SysStat", 6, DisplayBuf); // get settings from SysStat.  Will use the Display class to retrieve the values.  User can modify these via UI
+	Display.DisplayGetSetChrs(&tempString, "Temp", false);	//get the string from the SysStat file for the line pertaining to the temp sensors
+	if (tempString == "On") TempSensorsOn = true; else TempSensorsOn = false;	
+	Display.DisplayGetSetChrs(&tempString, "Flow", false);	//get 
+	if (tempString == "On") FlowSensorsOn = true; else FlowSensorsOn = false;
+	Display.DisplayGetSetChrs(&tempString, "Wlvl", false);
+	if (tempString = "On") WaterLvlSensorsOn = true; else WaterLvlSensorsOn = false;
+	Display.DisplayGetSetChrs(&PumpMode, "Relay", false);
 
+	// look up the polling intervals for the sensors that are on
+	if (TempSensorsOn)
+	{
+		/*temp sensors are on so get the polling interval from the Tempsens.txt on SD
+			Tempsens.txt
+			Text1,text,---Tmp Sensor---,Functions related to temperature sensors
+			rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
+			action,menu,---Action---,Update  Cancel  Edit_0  Edit_1  Test_0  Test_1
+		*/
+		Display.DisplaySetup(true, true, "Tempsens", 4, DisplayBuf);	//get the display array into the buffer
+		Display.DisplayGetSetNum(&tempString, "rate", false);
+		tempInt = tempString.toInt();									//convert to integer polling rate. 
 
+		//temp sensor sensor setup
+		Serial.println("Dallas Temperature IC Control Library Demo");
+
+		sensors.begin();								// Start up the library
+		tempInt1 = sensors.getDeviceCount();			// get count of devices on the wire
+		if (tempInt1 != 2)
+		{
+			//error, expecting 2 temperature sensors, one for water and one for temp inside monitor enclosure.  Log the error.
+		}
+
+		Serial.print("Found "); Serial.print(tempInt1, DEC);	Serial.println(" temp sensors.");	//debug
+
+		TempSens.TempSensorInit(0);				// initialize device, get address, set precision
+		InternalTempSens.TempSensorInit(1);		// initialize device, get address, set precision
+												// this sensor uses the polling set by TempSens.  TempSens uses a soft interupt which calls 'SensorPollRedirect', which in turn calls the class specific ReadTempSensor for each instance (tempSens and InternalTempSens.
+
+		TempSens.TurnOn(true);			//begin polling temp
+		TempSens.SetPollInterval(tempInt*1000);	// set polling interval to delay specified in Tempsens.txt.  Convert to ms
+	}
+
+	
 	KeyPoll(true);		// Begin polling the keypad S
 	SysTimePoll(true);	// begin to poll the Real Time Clock to get system time into SysTm
 
 	Display.DisplayStartStop(true);		// indicate that menu processing will occur. Tells main loop to pass key presses to the Menu
 	Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // Prepare main-UI display array and display the first line, mode is read only.
 
-	/*
-	set the RTC with starting point: mon 9/7/2015 @ 16:15
-	*/
 
-	SysTm.Month = 9;
-	SysTm.Day = 7;
-	SysTm.Year = (2015 - 1970);
-	SysTm.Hour = 16;
-	SysTm.Minute = 15;
-	SysTm.Second = 27;
-	SysTm.Wday = 2;
 
-	if (RTC.write(SysTm))		//  write time to RTC, false if fails
-	{
-		Serial.println(F("RTC initialized OK to mon 9/7/2015 @ 16:15 "));
-	}
-	else
-	{
-		ErrorLog("RTC initialization in SetUp failed");
-	}
+	
 
 
 }
@@ -1944,7 +2143,9 @@ void setup()
 
 void loop()
 {
-	Tmr.update();
+	Tmr.update();		//timer object used by keyboard and displays
+	SensTmr.update();	//timer object used for sensor reading intervals
+	
 	if (ReadKey() != NO_KEY)
 	{
 		// key was pressed and debounced result is ready for processing
@@ -1960,11 +2161,10 @@ void loop()
 		if (Display.DisplayName == "Main_UI")
 		{
 
-			//if here then processing this display array
-			//{"SetUp,menu,---Set Up---,RTC   Temp_sensor  Flow_sensor",
-			//"Row_2,menu,---2nd Display---,run2   set_time2   sensor_tst2   calibrate2",
-			//"Row_3,menu,---3rd Display---,run3   set_time3   sensor_tst3   calibrate3",
-			//"Row_4,menu,---4th Display---,Yes   No"}
+			/*if here then processing this display array
+			SetUp, menu, -- - Set Up-- - , Status   Temp_sensor  Flow_sensor   WaterLevel   RTC
+			Pumps, menu, --Set Pump Pwr--, Auto   Off   On
+			*/
 
 			if (Display.DisplayLineName == "SetUp")
 			{
@@ -1998,10 +2198,23 @@ void loop()
 						}
 						else
 						{
-							//error, should have identified the DisplaySelection
-							ErrorLog("error processing Main_UI, Setup: did not match DisplaySection");
+							if (Display.DisplaySelection == "WaterLevel")
+							{
+								Serial.println(F("Main_UI-->Setup-->WaterLevel"));
+							}
+							else
+							{
+								if (Display.DisplaySelection == "Status")
+								{
+									Serial.println(F("Main_UI-->Setup-->Status"));
+								}
+								else
+								{
+									//error, should have identified the DisplaySelection
+									ErrorLog("error processing Main_UI, Setup: did not match DisplaySection");
+								}
+							}
 						}
-
 					}
 
 				}
@@ -2114,10 +2327,10 @@ void loop()
 
 		if (Display.DisplayName == "tempsens")
 		{
-			/*  Text1, text, -- - Tmp Sensor-- - , Used for actions effecting all temp sens
-				sensNum, U - D--# - O - Sens--#, --# of Sensors--, U / D  # - O - Sens = #
-				rate, U - D-------- - ### - , --Sample Rate--, U / D   Every 060s
-				action, menu, -- - Action-- - , Update  Cancel  Individual-Setup  Discover  Test
+			/*  
+			Text1,text,---Tmp Sensor---,Functions related to temperature sensors
+			rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
+			action,menu,---Action---,Update  Cancel  Edit_0  Edit_1  Test_0  Test_1
 			*/
 			if (Display.DisplayLineName == "action")
 			{
@@ -2131,19 +2344,26 @@ void loop()
 					Display.DisplaySetup(false, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
 				}
 				else
-				if (Display.DisplaySelection == "Individual-Setup")
+				if (Display.DisplaySelection == "Edit_0")
 				{
-					Display.DisplaySetup(false, true, "TSens1", 6, DisplayBuf); // Put up first temp sens setup display array and display the first line
+					Display.DisplaySetup(false, true, "TSens0.txt", 8, DisplayBuf); // Put up first temp sens setup display array and display the first line
 				}
 				else
-				if(Display.DisplaySelection=="Discover")
+				if(Display.DisplaySelection=="Edit_1")
 				{
-					Serial.println(F("TempSens-->Action-->Discover"));	//debug
+					Display.DisplaySetup(false, true, "TSens1.txt", 8, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
 				}
 				else
-				if (Display.DisplaySelection == "Test")
+				if (Display.DisplaySelection == "Test0")
 				{
-					Serial.println(F("TempSens-->Action-->Test"));	//debug
+					Display.DisplaySetup(false, true, "TempTst0.txt", 3, DisplayBuf); // Put up test temp sens 0 display array and display the first line
+					//jf do stuff here
+				}
+				else
+				if (Display.DisplaySelection == "Test0")
+				{
+					Display.DisplaySetup(false, true, "TempTst1.txt", 3, DisplayBuf); // Put up test temp sens 1 display array and display the first line
+																						//jf do stuff here
 				}
 				else
 				{
@@ -2194,12 +2414,7 @@ void loop()
 			goto EndDisplayProcessing; //exit processing Display
 		}
 
-		//Serial.println("----------------------------------------------------------");
-		//Serial.println(Display.DisplayName);
-		//Serial.println(Display.DisplayLineName	);
-		//Serial.println(Display.DisplaySelection);
-		//Serial.println("");
-
+		
 		ErrorLog("error, unrecognized Display.DisplayName");	//should have recognized displayName
 		Serial.print(F("error, unrecognized Display.DisplayName=")); Serial.println(Display.DisplayName);
 	}	// end DisplayUserMadeSelection=true

@@ -1,7 +1,0 @@
-Text1,text,---Tmp Sensor 3---,Parameter set up for temperature sensor 3
-IsOn,U-D---------C-,-On/Off status-,U/D Is on?  Y 
-tempAddr,U-D----CCCCCCCC-,----Address----,U/D    00000000 
-tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Grow-Bed  
-handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
-rate,U-D---------###-,--Sample Rate--,U/D   Every 060s  
-action,menu,---Action---,Prev  Update-#3   Cancel
