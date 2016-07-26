@@ -1512,7 +1512,7 @@ boolean DisplayClass::DisplayGetSetChrs(String *ChrStr, String MnuLineName, bool
 	else
 	{
 		*ChrStr = DisplayLine.substring(tmp1, tmp2 + 1);
-		//Serial.println("DOW string='" + *NumStr +"'");	//debug
+		//Serial.print("string="); Serial.println(*ChrStr);	//debug
 
 	}
 
@@ -2103,7 +2103,7 @@ void setup()
 		Display.DisplaySetup(true, true, "Tempsens", 4, DisplayBuf);	//get the display array into the buffer
 		Display.DisplayGetSetNum(&tempString, "rate", false);
 		tempInt = tempString.toInt();									//convert to integer polling rate. 
-
+		
 		//temp sensor sensor setup
 		Serial.println("Dallas Temperature IC Control Library Demo");
 
@@ -2123,13 +2123,13 @@ void setup()
 		TempSens.TurnOn(true);			//begin polling temp
 		TempSens.SetPollInterval(tempInt*1000);	// set polling interval to delay specified in Tempsens.txt.  Convert to ms
 	}
-
 	
 	KeyPoll(true);		// Begin polling the keypad S
 	SysTimePoll(true);	// begin to poll the Real Time Clock to get system time into SysTm
 
 	Display.DisplayStartStop(true);		// indicate that menu processing will occur. Tells main loop to pass key presses to the Menu
 	Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // Prepare main-UI display array and display the first line, mode is read only.
+
 
 
 
