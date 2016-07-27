@@ -97,8 +97,35 @@ int	LS_DebounceContext;	//ID of timer used to debounce keypad
 
 /* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
 /*
-routines used to log errors to SD card. Used throught code /classes that follow
+routines used to log errors to SD card. Used throught code/classes that follow
+Error log is in xml format containing a date, log entry, and error level (used to determine action e.g. turn on red LED).  XML strings are 
+saved in program memory to conserve space using the PROGMEM library.  Strings are read from program memory using DisplayClass::ProgMemLU
+
+The file is located in the log directory of the SD card and is named "log/errorlog.xml"  It has a header and footer xml.  TPondMonitor assumes that the file is there and has the 
+correct structure.  It opens the file and inserts the log entry before the footer.
+
+xml header
+	<?xml version="1.0" encoding="UTF-8"?>
+	<dataroot xmlns:od="urn:schemas-microsoft-com:officedata" generated="2016-07-27T08:46:45">
+
+XML format for error log entry
+	<ErrorLog>
+		<LogDate> enter date here, use format 2016-07-28T00:00:00 </LogDate>
+		<LogEngry> log entry goes here, no quotes, max len 255 </LogEngry>
+		<LogLevel> log error level goes here, must be 1-3 </LggLevel>
+	</ErrorLog>
+
+XML footer
+	</dataroot>
+
+
 */
+const char	elXML_1[] PROGMEM = { "<ErrorLog><LogDate>" };
+const char	elXML_2[] PROGMEM = { "</LogDate><LogEngry>" };
+const char	elXML_3[] PROGMEM = { "</LogEngry><LogLevel>" };
+const char	elXML_4[] PROGMEM = { "</LggLevel></ErrorLog>" };
+const char	elXML_endRoot[] PROGMEM = { "</dataroot>" };
+
 void ErrorLog(String error)
 {
 	// writes error to errorlog.  If not able to write to errorlog, on SD card, writes to monitor and turns on LCD backlight strobe alarm.
@@ -129,7 +156,7 @@ String DisplayBuf[10];		// buffer used to work with DisplayArrays. Read/written 
 //-------------------------------------------
 //preset the strings used for data entry using the methods in the Display class.  
 //Defined here instead of in the class because I couldn't figure out how to get it to work within the variables declared for the class.
-//Note, these are stored in program memory to conserve space using DisplayClass::ProgMemLU and the PROGMEM ligrary.
+//Note, these are stored in program memory to conserve space using DisplayClass::ProgMemLU and the PROGMEM library.
 
 const char	DisplayDay[] PROGMEM = { "01020304050607080910111213141516171819202122232425262728293031" };	// day will advance 2 chr at a time
 const char DisplayMonth[] PROGMEM = { "010203040506070809101112" };	// month will advance 2 chr at a time
