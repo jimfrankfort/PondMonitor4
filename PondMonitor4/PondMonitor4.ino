@@ -25,6 +25,7 @@ tmElements_t SysTm;		// system time, used by RTC and time logic
 String SysTmStr;		// system time as string, format HH:MM using 24 hr time. derived from SysTm
 String SysDateStr;		// system date as string, format mm/dd/yyyy. derived from SysTm
 String sysDOWstr;		// system day of week as string, 3 chr length.
+String LogTm;			// string of date and time used for log functions formatted for XML "2016-07-27T00:00:00"
 int SysTmPoleContext;	// ID of timer used to poll system time
 #define SysTmPoleFreq 1000	// time polling frequency
 
@@ -44,6 +45,11 @@ boolean	TransmitReadings = false;	// if true, then system will radio sensor read
 long MainLoopStartTime;
 long MainLoopEndTime;
 long MainLoopDurration;
+
+//variables for the green and red LEDs.  Green is used to indicate monitoring is going well, red indicates when there are errors.
+//LED's are wired to power with the ground wired to a digital pin.  The LED is turned on by bringing the pin low.  The digital pins can sink more current than source.
+#define RedLEDpin 44
+#define GreenLEDpin	45
 
 
 
@@ -95,9 +101,31 @@ boolean LS_keyChanged;		// if true, key changed since last polling
 int	LS_PollContext;	// ID of timer used to poll keypad
 int	LS_DebounceContext;	//ID of timer used to debounce keypad
 
+/*----------------------------------------------- ProgMem Routines ----------------------------------------------------*/
+String ProgMemGetStr(const char* LUwhich, unsigned int LUlen)
+{
+	/*
+	ProgMem library has functions to store const char arrays in program memory space for later retrieval, thus saving SCRAM.
+	This routine returns a string stored in program memory that is needed by the calling routine.
+	Strings are saved in program memory as a char array which are read out one char at a time and appended to the String that is returned.
+	*/
+	Serial.println("reading from ProgMemGetStr");	//debug
+	String	RetString;					//holds the string that will be returned.
+	char	ChrFromString;				//holds the character returned from the string stored in Program memory
+	for (unsigned int x = 0; x<< LUlen; x++)
+	{
+		ChrFromString = pgm_read_byte_near(LUwhich + x);
+		Serial.print(ChrFromString);	//debug
+		RetString += ChrFromString;
+	}
+	Serial.println("RetString=" + RetString);	//debug
+	return RetString;
+}
+
+
 /* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
 /*
-routines used to log errors to SD card. Used throught code/classes that follow
+Routines used to log errors to SD card. Used throught code/classes that follow.
 Error log is in xml format containing a date, log entry, and error level (used to determine action e.g. turn on red LED).  XML strings are 
 saved in program memory to conserve space using the PROGMEM library.  Strings are read from program memory using DisplayClass::ProgMemLU
 
@@ -105,6 +133,7 @@ The file is located in the log directory of the SD card and is named "log/errorl
 correct structure.  It opens the file and inserts the log entry before the footer.
 
 xml header
+	header is not used by the routine but must already exist in the file.
 	<?xml version="1.0" encoding="UTF-8"?>
 	<dataroot xmlns:od="urn:schemas-microsoft-com:officedata" generated="2016-07-27T08:46:45">
 
@@ -118,31 +147,41 @@ XML format for error log entry
 XML footer
 	</dataroot>
 
-
+Error levels:
+	error level 1=hardware failure, e.g. RTC fails to init
+	error level 2= unexpected finding in software, e.g. didn't recognize a menu option from a limited set
+	error level ?  other error levels may be needed in the future, but so far, only 1&2 are defined.
 */
-const char	elXML_1[] PROGMEM = { "<ErrorLog><LogDate>" };
-const char	elXML_2[] PROGMEM = { "</LogDate><LogEngry>" };
-const char	elXML_3[] PROGMEM = { "</LogEngry><LogLevel>" };
-const char	elXML_4[] PROGMEM = { "</LggLevel></ErrorLog>" };
-const char	elXML_endRoot[] PROGMEM = { "</dataroot>" };
 
-void ErrorLog(String error)
+void ErrorLog(String error, int errLevel)
 {
-	// writes error to errorlog.  If not able to write to errorlog, on SD card, writes to monitor and turns on LCD backlight strobe alarm.
+	// writes error to errorlog.  If not able to write to errorlog, on SD card, writes to monitor and turns on Red alarm.
 	// Note that only one file can be open at a time, so you have to close this one before opening another.
-	// Note, need to add transaction for SPI bus becuse SD card uses SPI bus and so do other devices on this system.
+	// Note, may need to add transaction for SPI bus becuse SD card uses SPI bus and so do other devices on this system.
 
-	String errorLine = SysDateStr + " " + SysTmStr + ": " + error;	//form error line = system date, time, and error string
-																	// will KISS for now
-	Serial.println(error);
-
-	SDfile = SD.open("log/errorlog.txt", FILE_WRITE);
-
+	SDfile = SD.open("log/errorlog.xml", FILE_WRITE);				// try to open the file
 	if (SDfile)
-	{
-		SDfile.println(errorLine);	//write system date, time, and error string
-		SDfile.close();
-		Serial.println(errorLine);	//debug
+	{ 
+		/*file opened ok if true
+		Error log is a XML file.  we want to open the file and insert the error string at the appropriate place, which is just before the xml to end the data root.
+		*/
+		SDfile.seek(SDfile.size() - 13);	//seek to just before '</dataroot>"
+		//make entry in XML and close file
+		SDfile.print(F("<ErrorLog><LogDate>"));
+		SDfile.print(LogTm);
+		SDfile.print(F("</LogDate><LogEntry>"));
+		SDfile.print(error);
+		SDfile.print(F("</LogEntry><LogLevel>"));
+		SDfile.print(errLevel);
+		SDfile.println(F("</LogLevel></ErrorLog></dataroot>"));
+
+		SDfile.close();	// close the error log
+	}
+	else
+	{ 
+		//error log couldn't be opened, this is a serious error but will continue processing
+		digitalWrite(RedLEDpin, 0);		//turn on Red LED
+		Serial.println("Cannot open error log file");	//debug
 	}
 }
 
@@ -1828,11 +1867,11 @@ void SysTimePoll(boolean start)
 void GetSysTime(void* context)
 {
 
-	// routine to get system time and save in SysTm
+	// routine to get system time and save in SysTm and LogTm
 	if (RTC.read(SysTm))
 	{
 		// set up string of system time in 24 hr format
-		String tmpTime, strSnip;
+		String tmpTime, strSnip, DayPart, MonthPart, YearPart;
 		strSnip = String(SysTm.Hour);	// hr to String
 										//Serial.print("hour="); Serial.print(strSnip);
 		if (strSnip.length() == 1) strSnip = '0' + strSnip;	//hr needs to be 2 chr
@@ -1846,18 +1885,17 @@ void GetSysTime(void* context)
 		if (strSnip.length() == 1) strSnip = '0' + strSnip;	//sec needs to be 2 chr
 		SysTmStr = SysTmStr + strSnip;	// add sec to complete system time string in 24 hr format as hh:mm:ss
 
-
 										//set up string of system date as mm/dd/yyyy
-		strSnip = String(SysTm.Month);	// month to String
+		YearPart = String(tmYearToCalendar(SysTm.Year));	// year as yyyy
+		MonthPart = String(SysTm.Month);	// month to String
 										//Serial.print("Month="); Serial.print(strSnip);		
-		if (strSnip.length() == 1) strSnip = '0' + strSnip;	//month needs to be 2 chr
+		if (MonthPart.length() == 1) MonthPart = '0' + MonthPart;	//month needs to be 2 chr
 		SysDateStr = strSnip + "/";
-		strSnip = String(SysTm.Day);
-		//Serial.print(" day="); Serial.print(strSnip);		
-		if (strSnip.length() == 1) strSnip = '0' + strSnip;	//day needs to be 2 chr
-		SysDateStr = SysDateStr + strSnip + "/";
-		SysDateStr = SysDateStr + tmYearToCalendar(SysTm.Year);	// complete SysDateStr as mm/dd/yyyy
-																//Serial.print(" year="); Serial.println(SysTm.Year);	
+		DayPart = String(SysTm.Day);
+		if (DayPart.length() == 1) DayPart = '0' + DayPart;	//day needs to be 2 chr
+		
+		SysDateStr = MonthPart + "/" + DayPart + "/" + YearPart;	// format SysDateStr as mm/dd/yyyy		
+		LogTm = YearPart + "-" + MonthPart + "-" + DayPart + "T" + SysTmStr;	//create the time string in the format 2016 - 07 - 27T00:00 : 00, used for error log and data log
 
 		sysDOWstr = Display.ProgMemLU(DisplayDOW, SysTm.Wday, 3); // DisplayDOW[SysTm.Wday];	//set day of week string. SysTm.Wday is int where 1=sunday
 																  //Serial.println ("SysTmStr=" + SysTmStr + ", SysDateStr=" + SysDateStr + ", SysDOW=" + sysDOWstr);
@@ -1886,7 +1924,7 @@ void GetSysTime(void* context)
 		}
 		else
 		{
-			ErrorLog("DS1307 read error!  Please check the circuitry.");
+			ErrorLog("DS1307 read error!  Please check the circuitry.",1);
 		}
 	}
 }
@@ -2066,12 +2104,11 @@ void SensorPollRedirect(void* context)
 
 void setup()
 {
-	/*String Tst;
-	Serial.begin(9600);
-	boolean tstBool;
-	int tmp1 = 0, tmp2 = 0, tmp3 = 0;
-	String str1 = "string one", str2 = "string two", str3 = "string three";
+	/*
+	
 	*/
+
+
 	boolean tempBool;
 	String tempString;
 	String Str;
@@ -2086,17 +2123,47 @@ void setup()
 	lcd.print("Ver 1.0");
 	delay(5000);	//delay 5 sec
 
+	// set up and test LEDs
+	pinMode(RedLEDpin, OUTPUT);	// red LED attached here, 
+	digitalWrite(RedLEDpin, 0);	// turn on red LED
+	pinMode(GreenLEDpin, OUTPUT);
+	digitalWrite(GreenLEDpin, 0);	// turn on green LED
+	// tell user we are testing the LEDs
+	lcd.begin(16, 2);	//unclear why, but this is needed every time else setCursor(0,1) doesn't work....probably scope related.
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("testing LEDs");
+	lcd.setCursor(0, 1);
+	lcd.print("Grn & Red are on");
+	delay(3000);	//delay 5 sec
+	digitalWrite(RedLEDpin, 1);
+	digitalWrite(GreenLEDpin, 1);	// turn off both LEDs
+
 
 	//initialize the SD library	
 	pinMode(53, OUTPUT);	//pin 53 = CS for SD card reader
-
+	
+	lcd.begin(16, 2);	//unclear why, but this is needed every time else setCursor(0,1) doesn't work....probably scope related.
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("starting SD ");
+	lcd.setCursor(0, 1);
+	
 	if (!SD.begin(53))
 	{
-		Serial.println(F("SD initialization failed!"));	// change to log in future
+		Serial.println(F("SD initialization failed!"));	// can't log because error log is on SD, so use display
+		lcd.print("failed, halt");
+		digitalWrite(RedLEDpin, 0);	//turn on Red LED.
+		while (true)
+		{
+			// loop forever as SD failure is fatal.
+		}
+
 	}
 	else
 	{
-		Serial.println(F("SD initialized ok."));	//change to log in future
+		lcd.print("SD init OK");
+		delay(3000);	//delay 5 sec
 	}
 
 	/*
@@ -2134,12 +2201,26 @@ void setup()
 		//temp sensor sensor setup
 		Serial.println("Dallas Temperature IC Control Library Demo");
 
+		lcd.begin(16, 2);	
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("tmp sens chk ");
+		lcd.setCursor(0, 1);
+
 		sensors.begin();								// Start up the library
 		tempInt1 = sensors.getDeviceCount();			// get count of devices on the wire
 		if (tempInt1 != 2)
 		{
 			//error, expecting 2 temperature sensors, one for water and one for temp inside monitor enclosure.  Log the error.
+			ErrorLog("In setup, found less than 2 temp sensors", 1);	// make error log entry
+			lcd.print("error tmp sens");
 		}
+		else
+		{
+			lcd.print("tmp sens ok");
+		}
+		delay(3000);
+
 
 		Serial.print("Found "); Serial.print(tempInt1, DEC);	Serial.println(" temp sensors.");	//debug
 
@@ -2147,7 +2228,7 @@ void setup()
 		InternalTempSens.TempSensorInit(1);		// initialize device, get address, set precision
 												// this sensor uses the polling set by TempSens.  TempSens uses a soft interupt which calls 'SensorPollRedirect', which in turn calls the class specific ReadTempSensor for each instance (tempSens and InternalTempSens.
 
-		TempSens.TurnOn(true);			//begin polling temp
+		TempSens.TurnOn(true);					//begin polling temp
 		TempSens.SetPollInterval(tempInt*1000);	// set polling interval to delay specified in Tempsens.txt.  Convert to ms
 	}
 	
@@ -2157,12 +2238,9 @@ void setup()
 	Display.DisplayStartStop(true);		// indicate that menu processing will occur. Tells main loop to pass key presses to the Menu
 	Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // Prepare main-UI display array and display the first line, mode is read only.
 
-
-
-
-	
-
-
+	//ErrorLog("testing errorlog,this is line 1 with error level 1", 1);	//debug
+	//ErrorLog("testing errorlog,this is line 2 with error level 2", 2);	//debug
+	//ErrorLog("testing errorlog,this is line 3 with error level 3", 3);	//debug
 }
 
 
@@ -2222,23 +2300,26 @@ void loop()
 						if (Display.DisplaySelection == "Flow_sensor")
 						{
 							Serial.println(F("Main_UI-->SetUp-->Flow_sensor"));	//debug
+							ErrorLog("test of error log for flow sensor", 2);
 						}
 						else
 						{
 							if (Display.DisplaySelection == "WaterLevel")
 							{
 								Serial.println(F("Main_UI-->Setup-->WaterLevel"));
+								ErrorLog("test of error log for water level", 3);
 							}
 							else
 							{
 								if (Display.DisplaySelection == "Status")
 								{
 									Serial.println(F("Main_UI-->Setup-->Status"));
+									ErrorLog("testing error log with Status", 1);
 								}
 								else
 								{
 									//error, should have identified the DisplaySelection
-									ErrorLog("error processing Main_UI, Setup: did not match DisplaySection");
+									ErrorLog("error processing Main_UI, Setup: did not match DisplaySection",2);
 								}
 							}
 						}
@@ -2250,7 +2331,7 @@ void loop()
 			}
 
 			//if here then entry not processed, which is an error
-			ErrorLog("error processing Main_UI: unrecognized DisplayLineName");
+			ErrorLog("error processing Main_UI: unrecognized DisplayLineName",2);
 		}
 
 		if (Display.DisplayName == "SetRTC_ui")
@@ -2320,7 +2401,7 @@ void loop()
 
 					if (!RTC.write(SysTm))		//  write time to RTC, false if fails
 					{
-						ErrorLog("RTC write failed");
+						ErrorLog("RTC write failed",1);
 					}
 					//Serial.print("Free Scram after set time ="); Serial.println(getFreeSram());
 
@@ -2334,7 +2415,7 @@ void loop()
 					}
 					else
 					{
-						ErrorLog("error processing setRTC_ui-->action: unrecognized DisplaySelection");
+						ErrorLog("error processing setRTC_ui-->action: unrecognized DisplaySelection",2);
 						Serial.print(F("error processing setRTC_ui-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);	//debug
 					}
 
@@ -2343,7 +2424,7 @@ void loop()
 			}
 			else
 			{
-				ErrorLog("error processing RTC_ui: unrecognized DisplayLineName");
+				ErrorLog("error processing RTC_ui: unrecognized DisplayLineName",2);
 				Serial.print(F("error processing setRTC_ui-->action: unrecognized DisplayLineName=")); Serial.println(Display.DisplayLineName);	//debug
 				Serial.print((F("length="))); Serial.println(Display.DisplayLineName.length());
 
@@ -2394,7 +2475,7 @@ void loop()
 				}
 				else
 				{
-					ErrorLog("error processing TempSens-->action: unrecognized DisplaySelection");
+					ErrorLog("error processing TempSens-->action: unrecognized DisplaySelection",2);
 					Serial.print(F("error processing TempSens-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
 				}
 			}
@@ -2422,7 +2503,7 @@ void loop()
 				if (Display.DisplaySelection == "Update-#1-Next")
 				{
 					// read variables from display array TSens1 into temp sensor variables
-					if (!(Display.DisplayWriteSD())) ErrorLog("error writing TSens1 to SD");	//save settings on SD
+					if (!(Display.DisplayWriteSD())) ErrorLog("error writing TSens1 to SD",1);	//save settings on SD
 					Display.DisplaySetup(false, true, "TSens2", 6, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
 					Serial.println(F("TSens1-->Action-->Update-#1-Next"));	//debug
 				}
@@ -2434,7 +2515,7 @@ void loop()
 				}
 				else
 				{
-					ErrorLog("error processing TSens1-->action: unrecognized DisplaySelection");
+					ErrorLog("error processing TSens1-->action: unrecognized DisplaySelection",2);
 					Serial.print(F("error processing TSens1-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
 				}
 			}
@@ -2442,7 +2523,7 @@ void loop()
 		}
 
 		
-		ErrorLog("error, unrecognized Display.DisplayName");	//should have recognized displayName
+		ErrorLog("error, unrecognized Display.DisplayName",2);	//should have recognized displayName
 		Serial.print(F("error, unrecognized Display.DisplayName=")); Serial.println(Display.DisplayName);
 	}	// end DisplayUserMadeSelection=true
 EndDisplayProcessing:	//target of goto. common exit for processing display array entries for object Display
