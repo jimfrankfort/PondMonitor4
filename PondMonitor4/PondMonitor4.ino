@@ -28,6 +28,7 @@ String sysDOWstr;		// system day of week as string, 3 chr length.
 String LogTm;			// string of date and time used for log functions formatted for XML "2016-07-27T00:00:00"
 int SysTmPoleContext;	// ID of timer used to poll system time
 #define SysTmPoleFreq 1000	// time polling frequency
+#define SetUpDelay 1000		// delay used during setup section. It is the length of time to show user a message during system self test done during setup.
 
 //---------------------------------------------------------------------------
 //			variables to control global state
@@ -1710,7 +1711,7 @@ byte ReadStringArraySD(String Dname, byte Dlines)
 	Returns the number of lines read if successful else 0.
 	*/
 	char filename[19];								//SD library uses char* not Sring objects.  max name is 8.3
-	Dname = "Save/" + Dname.substring(0, 8) + ".txt";
+	Dname = "Save/" + Dname + ".txt";	
 	Dname.toCharArray(filename, 18);				// room for folder/8.3 filename plus string terminating 0
 	if ((SD.exists(filename)) && (SDfile = SD.open(filename, FILE_READ)))
 	{
@@ -2121,7 +2122,7 @@ void setup()
 	lcd.print("PondMonitor");
 	lcd.setCursor(0, 1);
 	lcd.print("Ver 1.0");
-	delay(5000);	//delay 5 sec
+	delay(SetUpDelay);	//delay 5 sec
 
 	// set up and test LEDs
 	pinMode(RedLEDpin, OUTPUT);	// red LED attached here, 
@@ -2135,7 +2136,7 @@ void setup()
 	lcd.print("testing LEDs");
 	lcd.setCursor(0, 1);
 	lcd.print("Grn & Red are on");
-	delay(3000);	//delay 5 sec
+	delay(SetUpDelay);	//delay 5 sec
 	digitalWrite(RedLEDpin, 1);
 	digitalWrite(GreenLEDpin, 1);	// turn off both LEDs
 
@@ -2163,7 +2164,7 @@ void setup()
 	else
 	{
 		lcd.print("SD init OK");
-		delay(3000);	//delay 5 sec
+		delay(SetUpDelay);	//delay 5 sec
 	}
 
 	/*
@@ -2219,7 +2220,7 @@ void setup()
 		{
 			lcd.print("tmp sens ok");
 		}
-		delay(3000);
+		delay(SetUpDelay);
 
 
 		Serial.print("Found "); Serial.print(tempInt1, DEC);	Serial.println(" temp sensors.");	//debug
@@ -2449,29 +2450,32 @@ void loop()
 				else
 				if(Display.DisplaySelection == "Cancel")
 				{
+					Serial.println(F("TempSens-->Action-->Cancel"));	//debug					
 					Display.DisplaySetup(false, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
 				}
 				else
 				if (Display.DisplaySelection == "Edit_0")
 				{
-					Display.DisplaySetup(false, true, "TSens0.txt", 8, DisplayBuf); // Put up first temp sens setup display array and display the first line
+					Serial.println(F("TempSens-->Action-->Edit_0"));	//debug
+					Display.DisplaySetup(false, true, "TSens0", 8, DisplayBuf); // Put up first temp sens setup display array and display the first line
 				}
 				else
 				if(Display.DisplaySelection=="Edit_1")
 				{
-					Display.DisplaySetup(false, true, "TSens1.txt", 8, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
+					Serial.println(F("TempSens-->Action-->Edit_1"));	//debug
+					Display.DisplaySetup(false, true, "TSens1", 8, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
 				}
 				else
-				if (Display.DisplaySelection == "Test0")
+				if (Display.DisplaySelection == "Test_0")
 				{
-					Display.DisplaySetup(false, true, "TempTst0.txt", 3, DisplayBuf); // Put up test temp sens 0 display array and display the first line
-					//jf do stuff here
+					Serial.println(F("TempSens-->Action-->TempTst0"));	//debug
+					Display.DisplaySetup(false, true, "TempTst0", 4, DisplayBuf); // Put up test temp sens 0 display array and display the first line
 				}
 				else
-				if (Display.DisplaySelection == "Test0")
+				if (Display.DisplaySelection == "Test1")
 				{
-					Display.DisplaySetup(false, true, "TempTst1.txt", 3, DisplayBuf); // Put up test temp sens 1 display array and display the first line
-																						//jf do stuff here
+					Serial.println(F("TempSens-->Action-->TempTst1"));	//debug
+					Display.DisplaySetup(false, true, "TempTst1.txt", 4, DisplayBuf); // Put up test temp sens 1 display array and display the first line
 				}
 				else
 				{
@@ -2522,6 +2526,45 @@ void loop()
 			goto EndDisplayProcessing; //exit processing Display
 		}
 
+		/*
+		----------------processing for TempTst0----------------
+		Used to test temperature sensor 0 to make sure it is working and also to identify which temperature sensor is identified by index 0 (if needed to replace a temp sensors)
+		Text1,text,---Tmp Test 0---,Halts measurement and tests temperature sensor 0
+		tempValue,U-D--###-#----,--Temp Value--,U/D  ###.# F
+		action,menu,---Action---,Begin_Test   End_Test
+		*/
+		if (Display.DisplayName == "TempTst0")
+		{
+			/*if here then processing TempTst0
+
+			Put text of menu here for reference purposes
+
+			*/
+			if (Display.DisplayLineName == "action")
+			{
+				if (Display.DisplaySelection == "Begin_Test")
+				{
+					Serial.println(F("TempTst0-->action-->Begin_Test"));	//debug
+					//jf, change mode variables, start polling at intervals appropriate for testing, then add code temp sens 'interupt' to look at mode and act accordingly.
+				}
+				else
+				if (Display.DisplaySelection == "End_Test")
+				{
+					Serial.println(F("TempTst0-->action-->End_Test"));	//debug
+				}
+				else						
+				{
+					ErrorLog("error processing TempTst0-->action: unrecognized DisplaySelection",2);
+					Serial.print(F("error processing TempSens-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
+
+				}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}	// end processing DisplayName== "TempTst0"
+			//------------------end template------------------------------------------------------------------------------------------
+
+
+		//jf add  processing for new screens here
 		
 		ErrorLog("error, unrecognized Display.DisplayName",2);	//should have recognized displayName
 		Serial.print(F("error, unrecognized Display.DisplayName=")); Serial.println(Display.DisplayName);
