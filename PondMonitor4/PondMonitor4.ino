@@ -37,8 +37,10 @@ int SysTmPoleContext;	// ID of timer used to poll system time
 boolean	InMonitoringMode = true;	//if true, then system is in monitoring mode and sensors are sampled/recorded
 boolean TempSensorsOn, FlowSensorsOn, WaterLvlSensorsOn;	// sensors on/off for the purposes of monitoring.  Values read in from SysStat.txt.  User can change these with UI, but system reads state at startup
 String	PumpMode;											// relay state read in from SysStat.txt. Auto=controlled by water level sensor logic, on/off are manual 
-boolean InFlowSensTestMode = false;	// for testing and setup of flow sensors
-boolean InTempSensTestMode = false;	// for testing and setup of temperature sensor
+boolean InFlowSens0TestMode = false;	// for testing and setup of flow sensor #0
+boolean InFlowSens1TestMode = false;	// for testing and setup of flow sensor #1
+boolean InTempSens0TestMode = false;	// for testing and setup of temperature sensor #0
+boolean InTempSens1TestMode = false;	// for testing and setup of temperature sensor #1
 boolean InWaterLvlTestMode = false;	// for testing and setup of water level sensor
 boolean	TransmitReadings = false;	// if true, then system will radio sensor readings to companion system to upload to cloud
 
@@ -1966,12 +1968,14 @@ class TempSensor
 	*/
 protected:
 #define TEMPERATURE_PRECISION 9	// temp precision 9 bit
-#define TempSampleInterval 1000	// default sampling interval in ms
+#define TempMonitoringInterval 300000	// default sampling interval in ms = 5 min
+#define TempTestingInterval 3000		// sampling interval used for testing = 3 sec
 	byte			Snum;			// number of the sensor device on the I2C buss
 	String			Sname;			// name of sensor to use with logs and displays
 	String			SIDstring;		// string of ID for sensor when used in cloud based data logging
 	DeviceAddress	Saddr;			// I2C address of the sensor
 	boolean			IsOn;			// true if activly taking sensor readings else false
+	boolean			IsOnStorage;	// saves the state of IsOn during testing mode
 	int				PollInterval;	// polling interval
 	int				SensorPollContext;	//variable set by SensTmr and passed by code into SensTmr.  It is an index for the timer object
 public:
@@ -1982,6 +1986,7 @@ public:
 
 	void	TempSensorInit(byte SN);	//used like constructor because constructor syntax was not working ;-(.  passes in device #
 	void	TurnOn(boolean TurnOn);		//turn on/off flags and timers used to take readings at intervals
+	void	TestMode(boolean StartTesting);		// Preserves the state of IsOn while in testing mode.  If true, saves the state of IsOn, sets IsOn=true, and changes polling rate. If false, resumes prior state of IsOn and polling interval
 	void	ReadTempSensor(void);		// called at polling intervals, reads the temp sensor, and sets results and flags indicating a reading is ready for use
 	void	SetPollInterval(int Delay);	//sets the poll interval, changes the poll interval if sensor IsOn=true	//boolean Locate(void);				// locates the temp sensor at Saddr, returns true if found else false
 										//float	ReadC(void);				// converts 
@@ -2000,7 +2005,7 @@ void	TempSensor::TempSensorInit(byte SN)
 	IsOn = false;
 	Sname = SIDstring = "";
 	TempC = TempF = -100;	//preset to value indicating invalid temp...probably not needed because of TempSensReady
-	PollInterval = TempSampleInterval;	//default polling rate in MS
+	PollInterval = TempMonitoringInterval;	//default polling rate in MS
 	Snum = SN;
 	TempSensReady = false;	// tells main loop that the temperature readings are not ready to be read
 
@@ -2051,6 +2056,24 @@ void	TempSensor::TurnOn(boolean TurnOn)
 	}
 };
 //----------------------------------------------------------------------
+void	TempSensor::TestMode(boolean StartTesting)
+{
+	// Preserves the state of IsOn while in testing mode.  If true, saves the state of IsOn, sets IsOn=true, and changes polling rate. If false, resumes prior state of IsOn and polling interval
+	if (StartTesting)
+	{
+		IsOnStorage = IsOn;	// save the state of IsOn, the on off switch for this temp sensor
+		TurnOn(true);		// indicate sensor is on
+		SetPollInterval(TempTestingInterval);	// sample at interval appropriate for testing. e.g. every 3 sec
+	}
+	else
+	{
+		//testing done, resume prior state
+		IsOn = IsOnStorage;	//restore on/off state for monitoring
+		SetPollInterval(PollInterval);	//resume prior polling interval 
+		if (!IsOn) TurnOn(false);		//turn off soft interupt.
+	}
+}
+//----------------------------------------------------------------------
 void	TempSensor::ReadTempSensor(void)
 {
 	// called at polling intervals (SensorPollRedirect is called at intervals set up by TurnOn and calls the routing. See SensorPollRedirect for expalination of need for indirection
@@ -2069,7 +2092,7 @@ void	TempSensor::ReadTempSensor(void)
 		//error in requesting temp reading
 		TempSensReady = false;	// not ready to read as there was a problem
 		Serial.println("unexpected error calling sensors.requestTemperaturesByAddress in TempSensor::ReadTempSensor");	//debug
-																														//errorLog here
+		//ErrorLog("Error reading Temp Sensor=" & Saddr, 1);																												//errorLog here
 	}
 
 }
@@ -2200,8 +2223,6 @@ void setup()
 		tempInt = tempString.toInt();									//convert to integer polling rate. 
 		
 		//temp sensor sensor setup
-		Serial.println("Dallas Temperature IC Control Library Demo");
-
 		lcd.begin(16, 2);	
 		lcd.clear();
 		lcd.setCursor(0, 0);
@@ -2245,13 +2266,15 @@ void setup()
 }
 
 
-//--------------------------------------------------------main loop -----------------------------------------------
+//-----------------------------------------------------------------main loop -----------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------------------------------------------
 
 void loop()
 {
 	Tmr.update();		//timer object used by keyboard and displays
 	SensTmr.update();	//timer object used for sensor reading intervals
-	
+
+	//Begin--------------------------------------------------------Processing User Selection -------------------------------------------------------
 	if (ReadKey() != NO_KEY)
 	{
 		// key was pressed and debounced result is ready for processing
@@ -2526,31 +2549,32 @@ void loop()
 			goto EndDisplayProcessing; //exit processing Display
 		}
 
-		/*
-		----------------processing for TempTst0----------------
-		Used to test temperature sensor 0 to make sure it is working and also to identify which temperature sensor is identified by index 0 (if needed to replace a temp sensors)
-		Text1,text,---Tmp Test 0---,Halts measurement and tests temperature sensor 0
-		tempValue,U-D--###-#----,--Temp Value--,U/D  ###.# F
-		action,menu,---Action---,Begin_Test   End_Test
-		*/
 		if (Display.DisplayName == "TempTst0")
 		{
 			/*if here then processing TempTst0
 
-			Put text of menu here for reference purposes
-
+			Text1,text,---Tmp Test 0---,Halts measurement and tests temperature sensor 0
+			tempValue,U-D--###-#----,--Temp Value--,U/D  ###.# F
+			action,menu,---Action---,Begin_Test   End_Test
 			*/
 			if (Display.DisplayLineName == "action")
 			{
 				if (Display.DisplaySelection == "Begin_Test")
 				{
 					Serial.println(F("TempTst0-->action-->Begin_Test"));	//debug
-					//jf, change mode variables, start polling at intervals appropriate for testing, then add code temp sens 'interupt' to look at mode and act accordingly.
+					InMonitoringMode = false;	// flag to end monitoring mode....stop reading and logging sensor readings
+					InTempSens0TestMode = true;	// flag to start temp sens 0 testing
+					TempSens.TestMode(true);	// save prior state of IsOn, turn on if needed and change the polling interval for testing
+
+					//Note, soft interupt for temp sensor will check if monitoring vs testing and act accordingly.
 				}
 				else
 				if (Display.DisplaySelection == "End_Test")
 				{
 					Serial.println(F("TempTst0-->action-->End_Test"));	//debug
+					InMonitoringMode = true;		// flag to resume monitoring mode....resume reading and logging sensor readings
+					InTempSens0TestMode = false;	// flag to end temp sens 0 testing
+					TempSens.TestMode(false);		// restore prior state of IsOn, turn off if needed and change the polling interval for monitoring
 				}
 				else						
 				{
@@ -2561,7 +2585,7 @@ void loop()
 			}
 			goto EndDisplayProcessing; //exit processing Display
 		}	// end processing DisplayName== "TempTst0"
-			//------------------end template------------------------------------------------------------------------------------------
+
 
 
 		//jf add  processing for new screens here
@@ -2572,4 +2596,163 @@ void loop()
 EndDisplayProcessing:	//target of goto. common exit for processing display array entries for object Display
 
 	Display.DisplayUserMadeSelection = false;		// reset flag because we are processing the response
+	//END----------------------------------------------------------Processing User Selection -------------------------------------------------------
+
+
+	//Begin--------------------------------------------------------Process Sensors in Monitoring Mode-----------------------------------------------
+	if (InMonitoringMode)
+	{
+		/* check the timers used for sensor management.  Each sensor will set a flag indicating if it is
+		ready to be processed
+		*/
+
+		//-------------------------------------------Temp Sensors----------------------------
+		if (TempSens.TempSensReady)
+		{
+			TempSens.TempSensReady = false;	//reset because we are processing this 
+			Serial.print("Temperature for pond (0) = "); Serial.println(TempSens.TempF);
+			Serial.println(F("___________________________________________________________________"));
+		}
+
+		if (InternalTempSens.TempSensReady)
+		{
+			InternalTempSens.TempSensReady = false;	//reset because we are processing this 
+			Serial.print("Temperature for internal sensor (1) = "); Serial.println(InternalTempSens.TempF);
+			Serial.println(F("___________________________________________________________________"));
+		}
+		/*
+
+		//-------------------------------------------Water Level Sensor and pump relays----------
+		if (WaterSens.WaterLvlSensReady)
+		{
+			WaterSens.WaterLvlSensReady = false;	//reset ready flag
+													//debug
+			Serial.print(F(" water sensor reading="));
+			Serial.print(WaterSens.WaterLvl);
+			Serial.print(F(" WaterLvlRange="));
+			Serial.println(WaterSens.WaterLvlRange);
+			Serial.println(F("___________________________________________________________________"));
+
+			/*
+			Water sensor level range is used to turn on/off water pumps.  The water pump from the
+			bottom of the pond is attached to relay 1, and the skimmer pump attached to relay 2.
+			Connections for both are in the normally closed position, so that when the relay is 'on',
+			the pump is turned off.
+
+			When the filters get dirty or if there is a blockage in the outflow of the filter, the
+			water rises in the filter.
+			When the water level reaches the 'mid' value, we want to turn off the skimmer pump
+			and resume it when water level is 'low'.
+			If the water continues to rise, then the water level reaches 'high', at which time
+			we want to turn off the bottom filter, and turn it on when the water level is mid.
+			We will use WaterLvlRange and PriorLvlRange to determine if water level is increasing or decreasing
+
+			if the pump/filter circuit develops a serious leak and the water level drops below the sensor (level = 'none')
+			then we want to turn off both pumps.
+
+			We use the prior state and current state to determine if the water level is increasing or decreasing. The code should work if there is a
+			sudden change in level....e.g. bump the filter with a wave :-)
+			*/
+		/*
+			if ((WaterSens.WaterLvlRange == "none") && (WaterSens.PriorLvlRange == "none"))
+			{
+				//Starting with the assumption on no leak, so assume water level rising so we want both pumps circuits on
+				Relay.RelaySet(1, true);
+				Relay.RelaySet(2, true);	//skimmer on relay 2
+			}
+			else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low")) && (WaterSens.WaterLvlRange == "low"))
+			{
+				// water level rising so we want both pumps on
+				Relay.RelaySet(1, true);
+				Relay.RelaySet(2, true);	//skimmer on relay 2
+			}
+			else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low")) && WaterSens.WaterLvlRange == "mid")
+			{
+				// water level rising  and reached mid level, so we want to turn off the skimmer and leave the bottom on
+				Relay.RelaySet(1, true);
+				Relay.RelaySet(2, false);
+			}
+			else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low") || (WaterSens.PriorLvlRange == "mid")) && WaterSens.WaterLvlRange == "mid")
+			{
+				// water level rising  and still mid level, so we want to leave skimmer off
+				Relay.RelaySet(1, true);
+				Relay.RelaySet(2, false);	//skimmer on relay 2
+			}
+			else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low") || (WaterSens.PriorLvlRange == "mid")) && WaterSens.WaterLvlRange == "high")
+			{
+				// water level rising  and reached high level, so we want to turn off both pumps
+				Relay.RelaySet(1, false);
+				Relay.RelaySet(2, false);	//skimmer on relay 2
+			}
+			else if ((WaterSens.PriorLvlRange == "high") && (WaterSens.WaterLvlRange == "high"))
+			{
+				// water level high and still high so we want to leave both pumps off
+				Relay.RelaySet(1, false);
+				Relay.RelaySet(2, false);
+			}
+			else if ((WaterSens.PriorLvlRange == "high") && (WaterSens.WaterLvlRange == "mid"))
+			{
+				// water level was high and dropped to mid, so turn bottom pump on again
+				Relay.RelaySet(1, true);	// bottom pump on relay 1
+				Relay.RelaySet(2, false);
+			}
+			else if (((WaterSens.PriorLvlRange == "high") || (WaterSens.PriorLvlRange == "mid")) && (WaterSens.WaterLvlRange == "mid"))
+			{
+				// water level was high and dropped to mid and still at mid, so bottom pump on, skimmer off
+				Relay.RelaySet(1, true);
+				Relay.RelaySet(2, false);
+			}
+			else if (((WaterSens.PriorLvlRange == "high") || (WaterSens.PriorLvlRange == "mid")) && (WaterSens.WaterLvlRange == "low"))
+			{
+				// water level was up (high or mid) and dropped to low, so turn an both pumps
+				Relay.RelaySet(1, true);
+				Relay.RelaySet(2, true);
+			}
+			else if (((WaterSens.PriorLvlRange == "mid") || (WaterSens.PriorLvlRange == "low")) && (WaterSens.WaterLvlRange == "low"))
+			{
+				// water level was up (mid or low) and remains at low, so keep both pumps on
+				Relay.RelaySet(1, true);
+				Relay.RelaySet(2, true);
+			}
+			else if (((WaterSens.PriorLvlRange == "high") || (WaterSens.PriorLvlRange == "mid") || (WaterSens.PriorLvlRange == "low")) && (WaterSens.WaterLvlRange == "none"))
+			{
+				// water level was up and now at none, so filter is emptying, which could be due to a big leak, so turn off both pumps to prevent draining the pond
+				Relay.RelaySet(1, false);
+				Relay.RelaySet(2, false);
+
+				//jf log error here
+			}
+
+		}
+		*/
+
+		//-------------------------------------------Flow Sensors----------------------------
+		/*
+		if (FlowSens.FlowReadReady)
+		{
+			FlowSens.FlowReadReady = false;			// reset ready flag because wee are processing this
+			Serial.print(F("Flow Sensor 1 =")); Serial.print(FlowSens.FlowValue1); Serial.print(F(" l/min, duty cycle in ms=")); Serial.println(FlowSens.flow1dur);
+			Serial.print(F("Flow Sensor 2 =")); Serial.print(FlowSens.FlowValue2); Serial.print(F(" l/min, duty cycle in ms=")); Serial.println(FlowSens.flow2dur);
+			Serial.println(F("___________________________________________________________________"));
+		}
+		*/
+
+	}	// end if in monitoring mode
+	//END----------------------------------------------------------Process Sensors in Monitoring Mode-----------------------------------------------
+
+	//Begin--------------------------------------------------------Testing Mode---------------------------------------------------------------------
+
+	if(!InMonitoringMode)
+	{
+		if (InTempSens0TestMode &&  TempSens.TempSensReady)
+		{
+			/*if here, then in temperature sensor testing mode and we have a valid reading.
+			We want to update the display with the value returned from the sensor
+			js here
+			*/
+		}
+	} // end 	if(!InMonitoringMode)
+	//End----------------------------------------------------------Testing Mode---------------------------------------------------------------------
+
+
 } // end main loop
