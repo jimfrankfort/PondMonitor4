@@ -1,8 +1,8 @@
 Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1
 IsOn,U-D---------C-,-On/Off status-,U/D Is on?  Y 
 tempThresh,U-D--###------,--Alrm Thresh--,U/D  110 deg F
-tempAddr,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFC38E 
-tempAddr,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400DA 
+tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFC38E 
+tempAddrRt,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400DA 
 tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Device Tmp  
 handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
 action,menu,---Action---,Update   Cancel

@@ -1,3 +1,4 @@
 Text1,text,---Tmp Sensor---,Functions related to temperature sensors
+action1,menu,---Edit/Test---,Edit_0   Edit_1   Test_0   Test_1
 rate,U-D---------###-,--Sample Rate--,U/D   Every 060s  
-action,menu,---Action---,Update  Cancel   Edit_0   Edit_1   Test_0   Test_1
+action,menu,---Action---,Update  Cancel

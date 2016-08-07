@@ -28,7 +28,7 @@ String sysDOWstr;		// system day of week as string, 3 chr length.
 String LogTm;			// string of date and time used for log functions formatted for XML "2016-07-27T00:00:00"
 int SysTmPoleContext;	// ID of timer used to poll system time
 #define SysTmPoleFreq 1000	// time polling frequency
-#define SetUpDelay 1000		// delay used during setup section. It is the length of time to show user a message during system self test done during setup.
+#define SetUpDelay 1500		// delay used during setup section. It is the length of time to show user a message during system self test done during setup.
 
 //---------------------------------------------------------------------------
 //			variables to control global state
@@ -1995,6 +1995,7 @@ public:
 	float	TempC;					// last temperature reading in celcius.	if -100 then not valid
 	float	TempF;					// last temperature reading in farenheight.  If-100 then not valid
 	boolean	TempSensReady;			// tells main loop that there is a temperature reading that is ready to be processed
+	boolean	TempSensReadDealyIsDone;// used by ReadTempSensor() to implement 1 sec read delay and continue to process other things
 
 
 	void	TempSensorInit(byte SN);	//used like constructor because constructor syntax was not working ;-(.  passes in device #
@@ -2067,6 +2068,7 @@ void	TempSensor::TurnOn(boolean TurnOn)
 		IsOn = false;	//flag that we are not taking temperature sensor readings
 		SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context
 	}
+	TempSensReadDealyIsDone = false;		// flag used by soft interupt to read temp sensor.
 };
 //----------------------------------------------------------------------
 void	TempSensor::TestMode(boolean StartTesting)
@@ -2092,22 +2094,12 @@ void	TempSensor::ReadTempSensor(void)
 	// called at polling intervals (SensorPollRedirect is called at intervals set up by TurnOn and calls the routing. See SensorPollRedirect for expalination of need for indirection
 	// This routine reads the temp sensor, and sets results and flags indicating a reading is ready for use
 
-	//sensors.requestTemperatures(); // Send the command to get temperatures
-	if (sensors.requestTemperaturesByAddress(Saddr)) //request temperature reading for this device
-	{
-		//if here, read ok so get result
-		TempC = sensors.getTempC(Saddr);
-		TempF = DallasTemperature::toFahrenheit(TempC);	//convert to farenheit
-		TempSensReady = true;	// tells main loop that temp is ready to read
-	}
-	else
-	{
-		//error in requesting temp reading
-		TempSensReady = false;	// not ready to read as there was a problem
-		Serial.println("unexpected error calling sensors.requestTemperaturesByAddress in TempSensor::ReadTempSensor");	//debug
-		//ErrorLog("Error reading Temp Sensor=" & Saddr, 1);																												//errorLog here
-	}
-
+	//if here, read ok so get result. SensorPollRedirect calls sensors.requestTemperatures() to tell all temp sensors to take temperature.  It then sets up a 1 sec delay 
+	//for conversion to occur, then calls this routine to actually read the temperature.
+	TempC = sensors.getTempC(Saddr);
+	TempF = DallasTemperature::toFahrenheit(TempC);	//convert to farenheit
+	TempSensReady = true;	// tells main loop that temp is ready to read
+	
 }
 //----------------------------------------------------------------------
 void	TempSensor::SetPollInterval(int Delay)
@@ -2132,9 +2124,25 @@ void	TempSensor::printAddress(void) 	// prints the address of temp sensor
 //----------------------------------------------------------------------
 void SensorPollRedirect(void* context)
 {
-	// this routine exists outside of the Sensor class because we can't use some timer.every method within a class in the .pde implementation.  Compiler cannot resolve which routine to call.
-	TempSens0.ReadTempSensor();
-	TempSens1.ReadTempSensor();
+	
+	int	tmpInt;
+		/* This routine exists outside of the Sensor class because we can't use some timer.every method within a class in the .pde implementation.  Compiler cannot resolve which routine to call.
+		The routine is called by two soft interupts.  1) at repeated intervals to take temperature readings.  2) Once it is time to take a reading, a one-shot
+		'soft interupt' is used to create a 1 sec delay, which is the time to wait for the temp sensor to make a measurement.
+		*/
+	if(TempSens0.TempSensReadDealyIsDone)
+	{ 
+		// here only if prior call to this routing was made and a 1 sec delay occurred
+		TempSens0.ReadTempSensor();	// read temperature now that 1 sec delay has occurred
+		TempSens1.ReadTempSensor();
+		TempSens0.TempSensReadDealyIsDone = false;	// set to false so when it is time to read the sensors again, we will add a 1 sec delay for conversion time.
+	}
+	else
+	{
+		sensors.requestTemperatures();								// broadcast command to all  sensors to measure temperature.  Read after 1 sec.
+		tmpInt = SensTmr.after(1000, SensorPollRedirect, (void*)2);	// return to this routine after a 1 sec delay.  Processing continues during this time.
+		TempSens0.TempSensReadDealyIsDone = true;					// next time this routine is entered, the temp sensors will be read.
+	}
 }
 
 //--------------------------------------------------------Set Up --------------------------------------------------
@@ -2471,8 +2479,9 @@ void loop()
 		{
 			/*  
 			Text1,text,---Tmp Sensor---,Functions related to temperature sensors
-			rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
-			action,menu,---Action---,Update  Cancel  Edit_0  Edit_1  Test_0  Test_1
+			action1,menu,---Edit/Test---,Edit_0   Edit_1   Test_0   Test_1
+			rate,U-D---------###-,--Sample Rate--,U/D   Every 060s  
+			action,menu,---Action---,Update  Cancel
 			*/
 			if (Display.DisplayLineName == "action")
 			{
@@ -2487,16 +2496,35 @@ void loop()
 					Display.DisplaySetup(false, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
 				}
 				else
+				{
+					ErrorLog("error processing TempSens-->action: unrecognized DisplaySelection",2);
+					Serial.print(F("error processing TempSens-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
+				}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+
+			///////////////////////////
+			if (Display.DisplayLineName == "action1")
+			{
+
 				if (Display.DisplaySelection == "Edit_0")
 				{
 					Serial.println(F("TempSens-->Action-->Edit_0"));	//debug
 					Display.DisplaySetup(false, true, "TSens0", 8, DisplayBuf); // Put up first temp sens setup display array and display the first line
+					// populate the address in the display line
+					//tempAddrLt, U - D----CCCCCCCC - , ----Addr_Lt----, U / D    28FFC38E
+					//tempAddrRt, U - D----CCCCCCCC - , ----Addr_Rt----, U / D    541400DA
+					//jf here
 				}
 				else
-				if(Display.DisplaySelection=="Edit_1")
+				if (Display.DisplaySelection == "Edit_1")
 				{
 					Serial.println(F("TempSens-->Action-->Edit_1"));	//debug
 					Display.DisplaySetup(false, true, "TSens1", 8, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
+					// populate the address in the display line
+					//tempAddrLt, U - D----CCCCCCCC - , ----Addr_Lt----, U / D    28FFC38E
+					//tempAddrRt, U - D----CCCCCCCC - , ----Addr_Rt----, U / D    541400DA
+					//jf here
 				}
 				else
 				if (Display.DisplaySelection == "Test_0")
@@ -2512,11 +2540,13 @@ void loop()
 				}
 				else
 				{
-					ErrorLog("error processing TempSens-->action: unrecognized DisplaySelection",2);
-					Serial.print(F("error processing TempSens-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
+					ErrorLog("error processing TempSens-->action1: unrecognized DisplaySelection", 2);
+					Serial.print(F("error processing TempSens-->action1: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
 				}
 			}
 			goto EndDisplayProcessing; //exit processing Display
+
+			//////////////////////////
 		}
 
 		if (Display.DisplayName == "TSens1")
