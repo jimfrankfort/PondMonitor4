@@ -2617,6 +2617,8 @@ void loop()
 
 	if (Display.DisplayUserMadeSelection == true)
 	{
+		String tempString;
+		
 		//If here, then user has made a Display selection, passing results through DisplayName, DisplayLineName, DisplaySelection
 		if (Display.DisplayName == "Main_UI")
 		{
@@ -2654,6 +2656,7 @@ void loop()
 					{
 						if (Display.DisplaySelection == "Flow_sensor")
 						{
+							Display.DisplaySetup(mReadOnly, mUseSD, "FlowSens", 2, DisplayBuf);	//put up the display for user to make selections regarding flow sensors
 							Serial.println(F("Main_UI-->SetUp-->Flow_sensor"));	//debug
 							ErrorLog("test of error log for flow sensor", 2);
 						}
@@ -2988,6 +2991,93 @@ void loop()
 			goto EndDisplayProcessing; //exit processing Display
 		}	// end processing DisplayName== "TempTst1"
 
+		if (Display.DisplayName == "FlowSens")	
+			/*
+			code to process FlowSens, which directs user to either edit settings or test sensors
+			*/
+
+		{
+			/*if here then processing FloSens
+				FlowSens.txt
+				Text1,text,--Flow Sensors--,Functions related to Flow sensors
+				action1,menu,---Edit/Test---,Edit_setings  Test_sensors   Cancel
+
+			*/
+			if (Display.DisplayLineName == "action1")
+			{
+				if (Display.DisplaySelection == "Edit_settings")
+				{
+					dprintln(F("FlowSens-->action1-->Edit_settings"));	//debug
+					Display.DisplaySetup(mReadWrite, mUseSD, "FlowEdit", 7, DisplayBuf);	//put up the display array to edit flow sensor related settings
+				}
+				else
+					if (Display.DisplaySelection == "Test_sensors")
+					{
+						dprint(F("FlowSens-->action1-->FlowTest"));	//debug
+						Display.DisplaySetup(mReadWrite, mUseSD, "FlowTest", 4, DisplayBuf);	//put up display array to test flow sensors.
+					}
+						if (Display.DisplaySelection == "Cancel")
+						{
+							dprint(F("FlowSens-->action1-->Cancel"));	//debug
+							Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 2, DisplayBuf);	// user canceled, so return to Main_UI
+						}					
+						else
+						{
+							ErrorLog("error processing FlowSens-->action1: unrecognized DisplaySelection", 2);
+							dprint(F("error processing FlowSens-->action1: unrecognized DisplaySelectionn=")); dprint(Display.DisplaySelection);
+						}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}	// end processing DisplayName== FlowSens
+
+		if (Display.DisplayName == "FlowEdit")
+		{
+			/*if here then processing FlowEdit, settings for flow sensors 1 & 2.  User makes changes then on Save, we write to SD card, and update the sampling rate
+
+				FlowEdit.txt
+				Text1,text,-Flow Edit-,Used to set flow sensor parameters
+				FlowName1,U-D--CCCCCCCCCC,-Flow1 Name str-,U/D  Upper Pump
+				FlowWarn1,U-D--###------,-Low Flow1 Lvl @,U/D  ### l/min
+				FlowName2,U-D--CCCCCCCCCC,-Flow2 Name str-,U/D  Lower Pump
+				FlowWarn2,U-D--###------,-Low Flow2 Lvl @,U/D  ### l/min
+				rate,U-D---------###-,--Sample Rate--,U/D   Every 300s
+				action,menu,---Action---,Save_Changes   Cancel
+
+			*/
+			if (Display.DisplayLineName == "menu")
+			{
+				if (Display.DisplaySelection == "Save_Changes")
+				{
+					//Save the array on SD, get the settings from the display array and save values in object variables
+					dprintln(F("FlowEdit-->menu-->Save_Changes"));	//debug
+					Display.DisplayWriteSD();	// save what user may have changed
+					Display.DisplayGetSetChrs(&FlowSens.Flow1Name, "FlowName1", mget);	//get name of flow sensor 1 and save in object
+					Display.DisplayGetSetChrs(&FlowSens.Flow2Name, "FlowName2", mget);	//get name of flow sensor 2
+					Display.DisplayGetSetChrs(&tempString, "FlowWarn1", mget);	//get low flow warning threshold for sensor 1
+					FlowSens.Flow1Warn = tempString.toInt();
+					Display.DisplayGetSetChrs(&tempString, "FlowWarn2", mget);	//get low flow warning for sensor 2
+					FlowSens.Flow2Warn = tempString.toInt();
+					Display.DisplayGetSetNum(&tempString, "rate", mget);		//get the sampling rate in sec
+					FlowSens.SetReadFlowInterval(tempString.toInt() * 1000);	//save the sampling rate in ms
+
+					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+				}
+				else
+					if (Display.DisplaySelection == "Cancel")
+					{
+						Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+					}
+					else
+						{
+							ErrorLog("error processing FlowEdit-->menu: unrecognized DisplaySelection", 2);
+							dprint(F("error processing FlowEdit-->menu: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+						}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+
+		}	// end processing DisplayName== "FlowEdit"
+
+		//jf, add processing for FlowTest
 
 		//jf add  processing for new screens here
 		

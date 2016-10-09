@@ -61,7 +61,7 @@ action,menu,---Action---,Begin_Test   End_Test
 
 FlowSens.txt
 Text1,text,--Flow Sensors--,Functions related to Flow sensors
-action1,menu,---Edit/Test---,Edit_setings  Test_sensors
+action1,menu,---Edit/Test---,Edit_setings  Test_sensors  Cancel
 
 FlowEdit.txt
 Text1,text,-Flow Edit-,Used to set flow sensor parameters
@@ -70,7 +70,7 @@ FlowWarn1,U-D--###------,-Low Flow1 Lvl @,U/D  ### l/min
 FlowName2,U-D--CCCCCCCCCC,-Flow2 Name str-,U/D  Lower Pump
 FlowWarn2,U-D--###------,-Low Flow2 Lvl @,U/D  ### l/min
 rate,U-D---------###-,--Sample Rate--,U/D   Every 300s  
-action,menu1,---Action---,Save_Changes   Cancel
+action,menu,---Action---,Save_Changes   Cancel
 
 FlowTest.txt
 Text1,text,---Flow Test---,Halts measurement and tests flow sensors 1 & 2
