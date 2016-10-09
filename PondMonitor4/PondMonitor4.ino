@@ -6,16 +6,27 @@
 
 #include <inttypes.h>
 #include <Event.h>
-#include <Timer.h>
+#include <Timer.h>			// timer functions, used for all the soft interupts and taking actions at intervals
+#include <Time.h>			// time functions, used by Real Time Clock (RTC)
+//#include <TimeLib.h>
 #include <LiquidCrystal.h>
 #include <Wire.h>
-#include <Time.h>			// time functions, used by Real Time Clock (RTC)
 #include <DS1307RTC.h>		// library for RTC module
 #include <avr/pgmspace.h>	// library for memory optimization using flash mem
 #include <SD.h>				// library for SD card
 #include <OneWire.h>		// library for one-wire (I2C) bus used by temperature sensors
 #include <DallasTemperature.h>	// library for temperature sensors used
-#include <Timer.h>			// timer functions, used for all the soft interupts and taking actions at intervals
+
+#define Debug			//general debug switch
+#ifdef Debug
+#define dprint(p)	Serial.print(p)
+#define dprintln(p)	Serial.println(p)
+
+#else
+#define dprint(p)
+#define dprintln(p)
+#endif // DEBUG
+
 
 File SDfile;			// file object for accessing SD card
 Timer Tmr;				// timer object used for polling at timed intervals, used by keyboard routines and display class
@@ -243,6 +254,13 @@ class DisplayClass
 	3rd element: Display line title....occupies the 1st line of the display
 	4th element: actual display line....occupies the 2nd line of the display
 	*/
+
+	#define mset  true		//for display set/get functions, dset-->write the value
+	#define mget  false		//dget-->get the value
+	#define mReadOnly  true	//for DisplaySetup--> menu is ReadOnly
+	#define mReadWrite  false // for DisplaySetup--> menue is read/write
+	#define mUseSD  true	// for DisplaySetup--> menu array comes from SD
+
 protected:
 	boolean DisplayInUse;	// if true, then the display array is in use.  Used by ProcessDisplay to only process key presses when Display is active. Needed because other parts of the program could be using the keypad.
 	int	DisplayLineCnt;		// count of lines in string matrix making up display array
@@ -1961,6 +1979,172 @@ uint16_t getFreeSram() {
 		return (((uint16_t)&newVariable) - ((uint16_t)__brkval));
 };
 
+
+/*
+-------------------------------------------------------------Flow Sensor variables and class--------------------------------------------------
+YF-S201 Hall Effect Water Flow Meter / Sensor
+two flow sensors attached, each to its own input pin.
+We use a timer event and polling to read the value of the flow sensors, incrementing a flow sensor
+specific counter when the state changes (no debounce needed with Hall effect sensors).
+Polling frequency just above 2x expected for max flow rate. In current application read
+at 200/sec or once every 5 ms.
+Four functions used:
+FlowCalcSetup: sets input pins and variables
+FlowCalcBegin: initiates the timers
+FlowCalcTick: called every 5ms, checks for state changes of flow sensors and increments cntrs
+FlowCalcRead: called to read and report flow rates of all sensors
+
+Read Water Flow Meter and output reading in liters/hour
+*/
+class FlowSensors
+{
+protected: 
+#define	flowmeter1  2		// 1st flow Meter on pin 2
+#define	flowmeter2  3		//2nd flow meter 0n pin3
+#define FlowMonitoringInterval 300000	// default sampling interval in ms = 5 min
+#define FlowTestingInterval 5000		// sampling interval used for testing = 5 sec
+	unsigned long	ReadFlowInterval = 2000;	// interval to read flow sensors at
+	boolean	usingFlowSensors = false;	// if true, then in the state of using flow sensors, else not
+	boolean testingFlowSensors = false;	// if true, then testing flow sensors else not.   note, using and testing are mutually exclusive
+	
+	int8_t flowTickContext;			// index to FlowTick timer in SensTmr
+	int8_t flowReadContext;			// index to FlowRead timer in SensTmr
+	unsigned long flow1tick = 0;	//frequency counter for flowsensor 1
+	unsigned long flow2tick = 0;	//frequency counter for flowsensor 2
+	boolean FlowState1 = false;		// high/low state of input for flow sensor 1
+	boolean FlowState2 = false;		// state of flow sensor 2
+
+	boolean flow1 = false;
+	boolean flow2 = false;
+	
+	unsigned long flowStartTime;	//starting time for flow calculations
+	unsigned long flowEndTime;		//ending time for flow calculationsunsigned 
+	long currentTime;
+	unsigned long cloopTime;
+
+public:
+	String			Flow1Name;					// string name for the sensor.  e.g. upper pump
+	String			Flow2Name;					// string name for the sensor.  e.g. Lower pump
+	//boolean			IsOn;					// true if activly taking sensor readings else false
+	 int	Flow1Warn;							// set warning LED if flow less than this level
+	 int	Flow2Warn;							// set warning LED if flow rate below this level
+	unsigned int	FlowValue1;					// flow meter 1 reading in l/min
+	unsigned int	FlowValue2;					// reading for meter 2
+	unsigned long flow1dur = 0;					//duty cycle for flowsensor 1, useful for adjusting sampling rate.
+	unsigned long flow2dur = 0;					//duty cycle for flowsensor 2
+	boolean FlowReadReady = false;				//used in main loop, if true that ok to read flow values 1-2
+
+	void FlowCalcSetup(void);				//sets up pins for flow sensors	
+	void FlowStartStop(boolean Start);		// if Start=true then enable soft interupts to measure flow, else turn them off.
+	void SetReadFlowInterval(unsigned long interval);	//sets soft interupt for how often to read the flow sensors
+	void FlowCalcTick(void);				// called to check for changes of state of flow sensors
+
+	void FlowCalcBegin(void);				// sets counters at the start of a flow calculation
+	void FlowCalcRead(void);				// reads the values of all flow sensors
+
+} FlowSens;
+
+void FlowSensors::FlowCalcSetup()		//sets up pins for flow sensors and sets the timers to measure and read flow sensors
+{
+	pinMode(flowmeter1, INPUT);
+	pinMode(flowmeter2, INPUT);
+}
+//----------------------------------------------------------------------
+void FlowSensors::FlowStartStop(boolean Start)		// if Start=true then enable soft interupts to measure flow, else turn them off.
+{
+	if (Start)
+	{
+		flowTickContext = SensTmr.every(5, FlowCalcTickRedirect, (void*)2);	// calls FlowCalcTick every 5ms to check for state change
+		flowReadContext = SensTmr.every(ReadFlowInterval, FlowCalcReadRedirect, (void*)3);	// calls to read flow sensors
+		usingFlowSensors = true;	// tells us we are using the flow sensore....timers on
+		FlowCalcBegin();			// reset counters used for flow calculations
+	}
+	else
+	{
+		FlowReadReady = false;
+		usingFlowSensors = false;			// tells us we are not currently using the flow sensors...no timers
+		SensTmr.stop(flowTickContext);		// turn off timer for FlowCalcTickRedirect
+		SensTmr.stop(flowReadContext);		// turn off timer to read flow sensors
+	}
+}
+//----------------------------------------------------------------------
+void FlowSensors::SetReadFlowInterval(unsigned long interval)
+{
+	ReadFlowInterval = interval;
+	if (usingFlowSensors)
+	{
+		// we are using the timers for to read the flow sensors, so change the timer interval
+		SensTmr.stop(flowReadContext);		// turn off timer to read flow sensors
+		flowReadContext = SensTmr.every(ReadFlowInterval, FlowCalcReadRedirect, (void*)3);	// start timer up again with the new interval
+		FlowCalcBegin();	//reset counters to insure correct flow readings on the next read cycle
+	}
+}
+//----------------------------------------------------------------------
+void FlowSensors::FlowCalcBegin()		// sets counters at the start of a flow calculation
+{
+	flow1tick = flow2tick = 0;	// zero out flow sensor frequency counters
+	FlowState1 = digitalRead(flowmeter1);	//starting state of the flow meters
+	FlowState2 = digitalRead(flowmeter1);
+	flowStartTime = millis();				 // set starting time for measurement interval. note, millis wraps every ~ 50 days so need to check if end <start when reading
+}
+//----------------------------------------------------------------------
+void FlowSensors::FlowCalcTick(void)			// called by FlowcalcTickRedirect to check for changes of state of flow sensors
+{
+	//flow1=digitalRead(flowmeter1);
+	//flow2=digitalRead(flowmeter2);
+	//flow3=digitalRead(flowmeter3);
+
+	if (digitalRead(flowmeter1) != FlowState1)
+	{
+		FlowState1 = !FlowState1;	//invert flow state, begin checking for next state change
+		flow1tick++;				//increment frequency counter because pin changed state
+	}
+
+	if (digitalRead(flowmeter2) != FlowState2)
+	{
+		FlowState2 = !FlowState2;	//invert flow state, begin checking for next state change
+		flow2tick++;				//increment frequency counter because pin changed state
+	}
+}
+//----------------------------------------------------------------------
+void FlowSensors::FlowCalcRead(void)			// reads the values of all flow sensors
+{	// called by timer ever ReadFlowInterval
+	long ElapsedTime;	//local variable for elapsed time since last calculation in milliseconds
+
+	flowEndTime = millis();	//ending time for this flow calculation.
+
+	if (flowEndTime>flowStartTime)
+	{
+		ElapsedTime = flowEndTime - flowStartTime;
+		FlowValue1 = (flow1tick * 60 * 1000 / ElapsedTime / 7.5);// (Pulse frequency x 60 min) * (1000 ms/ElapsedTime in ms) / 7.5Q = flow rate in L/hour
+		FlowValue2 = (flow2tick * 60 * 1000 / ElapsedTime / 7.5);
+		FlowReadReady = true;	// set flag indicating flow results are ready to read
+
+								//look at duration of wave form duration because of Nyquist, sampling rate=5ms so avg duration should be > 10ms
+		flow1dur = ElapsedTime / (flow1tick + 1);
+		flow2dur = ElapsedTime / (flow2tick + 1);
+	}
+	else
+	{
+		// millisecond timer has wrapped around (~ every 70 days), so can't use this reading
+		FlowReadReady = false;
+	}
+
+	FlowCalcBegin();	// restart the flow calculation using the current run of millis
+}
+//----------------------------------------------------------------------
+void FlowCalcTickRedirect(void* context)
+{
+	// this routine exists outside of the FlowSensor class because we can't use some timer.every method within a class in the .pde implementation.  Compiler cannot resolve which routine to call.
+	FlowSens.FlowCalcTick();	// check for changes of state of flow sensors
+}
+//----------------------------------------------------------------------
+void FlowCalcReadRedirect(void* context)
+{
+	// this routine exists outside of the FlowSensor class because we can't use some timer.every method within a class in the .pde implementation.  Compiler cannot resolve which routine to call.
+	FlowSens.FlowCalcRead();		// call method that reads the flow sensors and sets the flag in the main loop telling us it is time to do something with the results
+}
+
 //-------------------------------------Dallas Temperature Sensor variables and class------------------------------
 
 #define ONE_WIRE_BUS 11	// data is on digital pin 11 of the arduino
@@ -1986,14 +2170,19 @@ protected:
 	byte			Snum;			// number of the sensor device on the I2C buss
 	String			Sname;			// name of sensor to use with logs and displays
 	String			SIDstring;		// string of ID for sensor when used in cloud based data logging
-	DeviceAddress	Saddr;			// I2C address of the sensor
-	boolean			IsOn;			// true if activly taking sensor readings else false
+
 	boolean			IsOnStorage;	// saves the state of IsOn during testing mode
 	long int		PollInterval;	// polling interval
 	int				SensorPollContext;	//variable set by SensTmr and passed by code into SensTmr.  It is an index for the timer object
 public:
+	DeviceAddress	Saddr;			// I2C address of the sensor
+	String			SensName;		// string name for the sensor.  e.g. Pond Temp
+	String			SensHandle;		// Not currently used: string 'handle' used to ID sensor in internet data stream. 
+	boolean			IsOn;			// true if activly taking sensor readings else false
 	float	TempC;					// last temperature reading in celcius.	if -100 then not valid
 	float	TempF;					// last temperature reading in farenheight.  If-100 then not valid
+	float	AlarmThreshHigh;		// temperature (F) that will trigger high temp alarm...getting too hot!
+	float	AlarmThreshLow;			// temperature (F) that will trigger low temp alarm....burrrrrr!
 	boolean	TempSensReady;			// tells main loop that there is a temperature reading that is ready to be processed
 	boolean	TempSensReadDealyIsDone;// used by ReadTempSensor() to implement 1 sec read delay and continue to process other things
 
@@ -2157,6 +2346,7 @@ void setup()
 	String tempString;
 	String Str;
 	int tempInt, tempInt1;
+	float tmpFloat;
 
 	// display splash screen before getting under way
 	lcd.begin(16, 2);	//unclear why, but this is needed every time else setCursor(0,1) doesn't work....probably scope related.
@@ -2220,59 +2410,182 @@ void setup()
 		Relay,U-D---------CCCC,U/D  Pumps@ Auto
 		action,menu,---Action---,Return
 	*/
-	Display.DisplaySetup(true, true, "SysStat", 6, DisplayBuf); // get settings from SysStat.  Will use the Display class to retrieve the values.  User can modify these via UI
-	Display.DisplayGetSetChrs(&tempString, "Temp", false);	//get the string from the SysStat file for the line pertaining to the temp sensors
+	Display.DisplaySetup(mReadOnly, mUseSD, "SysStat", 6, DisplayBuf); // get settings from SysStat.txt  Will use the Display class to retrieve the values.  User can modify these via UI
+	Display.DisplayGetSetChrs(&tempString, "Temp", mget);	//get the string from the SysStat file for the line pertaining to the temp sensors
 	if (tempString == "On") TempSensorsOn = true; else TempSensorsOn = false;	
-	Display.DisplayGetSetChrs(&tempString, "Flow", false);	//get 
+	Display.DisplayGetSetChrs(&tempString, "Flow", mget);	//get 
 	if (tempString == "On") FlowSensorsOn = true; else FlowSensorsOn = false;
-	Display.DisplayGetSetChrs(&tempString, "Wlvl", false);
+	Display.DisplayGetSetChrs(&tempString, "Wlvl", mget);
 	if (tempString = "On") WaterLvlSensorsOn = true; else WaterLvlSensorsOn = false;
-	Display.DisplayGetSetChrs(&PumpMode, "Relay", false);
+	Display.DisplayGetSetChrs(&PumpMode, "Relay", mget);
 
 	// look up the polling intervals for the sensors that are on
 	if (TempSensorsOn)
 	{
-		/*temp sensors are on so get the polling interval from the Tempsens.txt on SD
-			Tempsens.txt
-			Text1,text,---Tmp Sensor---,Functions related to temperature sensors
-			rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
-			action,menu,---Action---,Update  Cancel  Edit_0  Edit_1  Test_0  Test_1
-		*/
-		Display.DisplaySetup(true, true, "Tempsens", 4, DisplayBuf);	//get the display array into the buffer
-		Display.DisplayGetSetNum(&tempString, "rate", false);
-		tempInt = tempString.toInt();									//convert to integer polling rate. 
-		
-		//temp sensor sensor setup
-		lcd.begin(16, 2);	
+
+		//temp sensors are to be used, so set them up!
+		lcd.begin(16, 2);
 		lcd.clear();
 		lcd.setCursor(0, 0);
 		lcd.print("tmp sens chk ");
 		lcd.setCursor(0, 1);
 
-		sensors.begin();								// Start up the library
+		sensors.begin();								// Start up the temp sensor library
 		tempInt1 = sensors.getDeviceCount();			// get count of devices on the wire
 		if (tempInt1 != 2)
 		{
 			//error, expecting 2 temperature sensors, one for water and one for temp inside monitor enclosure.  Log the error.
 			ErrorLog("In setup, found less than 2 temp sensors", 1);	// make error log entry
 			lcd.print("error tmp sens");
+			delay(SetUpDelay);
 		}
 		else
 		{
 			lcd.print("tmp sens ok");
+			delay(SetUpDelay);
 		}
-		delay(SetUpDelay);
 
 
-		Serial.print("Found "); Serial.print(tempInt1, DEC);	Serial.println(" temp sensors.");	//debug
 
-		TempSens0.TempSensorInit(0);				// initialize device, get address, set precision
+		dprint("Found "); dprint(tempInt1);	dprintln(" temp sensors.");	//debug
+
+		TempSens0.TempSensorInit(0);		// initialize device, get address, set precision.  Address comes from device.  Precision is #define
 		TempSens1.TempSensorInit(1);		// initialize device, get address, set precision
-												// this sensor uses the polling set by TempSens.  TempSens uses a soft interupt which calls 'SensorPollRedirect', which in turn calls the class specific ReadTempSensor for each instance (tempSens and InternalTempSens.
 
-		TempSens0.TurnOn(true);					//begin polling temp
-		TempSens0.SetPollInterval(tempInt*1000);	// set polling interval to delay specified in Tempsens.txt.  Convert to ms
+		/* Set the polling interval for these temp sensors.  The polling interval is stored on SD in Tempsens.txt
+			Tempsens.txt
+			Text1, text, -- - Tmp Sensor-- - , Functions related to temperature sensors
+			rate, U - D-------- - ### - , --Sample Rate--, U / D   Every 060s
+			action, menu, -- - Action-- - , Update  Cancel  Edit_0  Edit_1  Test_0  Test_1
+			*/
+		Display.DisplaySetup(mReadOnly, mUseSD, "Tempsens", 4, DisplayBuf);	//get the display array into the buffer
+		Display.DisplayGetSetNum(&tempString, "rate", mget);			// read the polling rate
+		tempInt = tempString.toInt() * 1000;								//convert to integer polling rate and convert to ms.
+		TempSens0.SetPollInterval(tempInt);
+		TempSens1.SetPollInterval(tempInt);
+
+		// this sensor uses the polling set by TempSens.  TempSens uses a soft interupt which calls 'SensorPollRedirect', which in turn calls the class specific ReadTempSensor for each instance (tempSens 0 and 1).
+		/*	load data from the SD card.  Data stored on SD card using Display class, instances Tsens0 & 1.  Some of the Tsens (device) objects need to be written into Tsens0 Display on SD, and some need to be read from SD.
+		The Display will be written back to SD at the end of initialization to save the sate of all parameters.  e.g. sensor address comes from the sensor
+		and needs to be saved. */
+		Display.DisplaySetup(mReadWrite, mUseSD, "TSens0", 8, DisplayBuf); // get info from SD card related to temp sensor 0 and use it to populate class variables or read from class variables
+
+		/*	TSens0 has the following 8 lines
+		Text1, text, -- - Tmp Sensor 0-- - , Parameter set up for temperature sensor 0
+		IsOn, U - D-------- - C - , -On / Off status - , U / D Is on ? Y
+		tempThreshH, U - D--###------, --H Temp Thresh-, U / D  090 deg F
+		tempThreshL, U - D--###------, --L Temp Thresh-, U / D  036 deg F
+		tempAddrLt, U - D----CCCCCCCC - , ----Addr_Lt----, U / D    28FFA4F9
+		tempAddrRt, U - D----CCCCCCCC - , ----Addr_Rt----, U / D    541400B4
+		tempName, U - D--CCCCCCCCCC, ----Name Str----, U / D  Pond Temp
+		handle, U - D--CCCCCCCCCC, -- - Cloud Str-- - , U / D ? ? ? ? ? ? ? ? ? ? ?
+		*/
+		//temperature sensor initial on/off status is set above in initialization.  Therefore, the IsOn value must be written into "TSens0"
+		if (TempSens0.IsOn) tempString = "Y"; else tempString = "N";
+		Display.DisplayGetSetChrs(&tempString, "IsOn", mset); // write the status of TempSensorsOn into the line on Display named "IsOn"
+
+		// read temperature alarm thresholds from that is saved in TSens0.txt into appropriate Tsens class variable.
+		Display.DisplayGetSetNum(&tempString, "tempThreshH", mget);	//get the value as string
+		TempSens0.AlarmThreshHigh = tempString.toFloat();
+		Display.DisplayGetSetNum(&tempString, "tempThreshL", mget);	//get the value as string
+		TempSens0.AlarmThreshLow = tempString.toFloat();
+
+		/* populate the sensor address in the display line.  This comes from the sensor during initialization and therefore must be written into the Display (TSens0.txt),
+		which is being used for both storage and display.  The Address is too long to fit on the LCD so it is broken up into 2 segments.
+		Read the lt 4 Hex digits into a temp string */
+		tempString = "";	// blank out string
+		for (uint8_t i = 0; i < 4; i++)
+		{
+			if (TempSens0.Saddr[i] < 16) tempString += '0';
+			tempString += (TempSens0.Saddr[i], HEX);
+		}
+		Display.DisplayGetSetChrs(&tempString, "tempAddrLt", true);	// add lt part of address into display line
+		// Read the rt  4 Hex digits into a temp string
+		tempString = "";	// blank out string
+		for (uint8_t i = 4; i < 8; i++)
+		{
+			if (TempSens0.Saddr[i] < 16) tempString += '0';
+			tempString += (TempSens0.Saddr[i], HEX);
+		}
+		Display.DisplayGetSetChrs(&tempString, "tempAddrRt", true);	// add rt part of address into display line
+
+		Display.DisplayGetSetChrs(&TempSens0.SensName, "tempName", false); //read the sensor name from the display into the class
+		Display.DisplayGetSetChrs(&TempSens0.SensHandle, "handle", false); //read the sensor handle from the display into the class
+
+		Display.DisplayWriteSD();	// write the display containing TSens1 back to SD card.
+
+		//-----------------------------------
+		// set up the 2nd temperature sensor the exact same way as above
+		Display.DisplaySetup(false, true, "TSens1", 8, DisplayBuf); // get info from SD card related to temp sensor 0 and use it to populate class variables or read from class variables
+
+																	//temperature sensor initial on/off status is set above in initialization.  Therefore, the IsOn value must be written into "TSens1"
+		if (TempSens1.IsOn) tempString = "Y"; else tempString = "N";
+		Display.DisplayGetSetChrs(&tempString, "IsOn", true); // write the status of TempSensorsOn into the line on Display named "IsOn"
+
+															  // read temperature alarm thresholds from that is saved in TSens1.txt into appropriate Tsens class variable.
+		Display.DisplayGetSetNum(&tempString, "tempThreshH", false);	//get the value as string
+		TempSens1.AlarmThreshHigh = tempString.toFloat();
+		Display.DisplayGetSetNum(&tempString, "tempThreshL", false);	//get the value as string
+		TempSens1.AlarmThreshLow = tempString.toFloat();
+
+		/* populate the sensor address in the display line.  This comes from the sensor during initialization and therefore must be written into the Display (TSens1.txt),
+		which is being used for both storage and display.  The Address is too long to fit on the LCD so it is broken up into 2 segments.
+		Read the lt 4 Hex digits into a temp string */
+		tempString = "";	// blank out string
+		for (uint8_t i = 0; i < 4; i++)
+		{
+			if (TempSens1.Saddr[i] < 16) tempString += '0';
+			tempString += (TempSens1.Saddr[i], HEX);
+		}
+		Display.DisplayGetSetChrs(&tempString, "tempAddrLt", true);	// add lt part of address into display line
+																	// Read the rt  4 Hex digits into a temp string
+		tempString = "";	// blank out string
+		for (uint8_t i = 4; i < 8; i++)
+		{
+			if (TempSens1.Saddr[i] < 16) tempString += '0';
+			tempString += (TempSens1.Saddr[i], HEX);
+		}
+		Display.DisplayGetSetChrs(&tempString, "tempAddrRt", true);	// add rt part of address into display line
+
+		Display.DisplayGetSetChrs(&TempSens1.SensName, "tempName", false); //read the sensor name from the display into the class
+		Display.DisplayGetSetChrs(&TempSens1.SensHandle, "handle", false); //read the sensor handle from the display into the class
+
+		Display.DisplayWriteSD();	// write the display containing TSens1 back to SD card.
+		//-------------------------------------
+
+		TempSens0.TurnOn(true);						//enable polling temp
+		TempSens0.SetPollInterval(tempInt * 1000);	// set polling interval to delay specified in Tempsens.txt.  Convert to ms
 	}
+		//-------------------------------------
+	if (FlowSensorsOn)
+	{
+		/*
+		Set up for flow sensors 1 & 2.  Read the flow sensor names, warning thresholds, and sample rate off the SD card from FlowEdit.txt and
+		set the variables in the FlowSens object.  After that, set up the hardware for sampling flow rates, and enable readings.
+
+			FlowEdit.txt
+			Text1,text,-Flow Edit-,Used to set flow sensor parameters
+			FlowName1,U-D--CCCCCCCCCC,-Flow1 Name str-,U/D  Upper Pump
+			FlowWarn1,U-D--###------,-Low Flow1 Lvl @,U/D  ### l/min
+			FlowName2,U-D--CCCCCCCCCC,-Flow2 Name str-,U/D  Lower Pump
+			FlowWarn2,U-D--###------,-Low Flow2 Lvl @,U/D  ### l/min
+			rate,U-D---------###-,--Sample Rate--,U/D   Every 300s
+			action,menu1,---Action---,Save_Changes   Cancel
+		*/
+		Display.DisplaySetup(mReadOnly, mUseSD, "FlowEdit", 8, DisplayBuf);	//get display array from SD card into DisplayBuf
+		Display.DisplayGetSetChrs(&FlowSens.Flow1Name, "FlowName1", mget);	//get name of flow sensor 1 and save in object
+		Display.DisplayGetSetChrs(&FlowSens.Flow2Name, "FlowName2", mget);	//get name of flow sensor 2
+		Display.DisplayGetSetChrs(&tempString, "FlowWarn1", mget);	//get low flow warning threshold for sensor 1
+		FlowSens.Flow1Warn = tempString.toInt();
+		Display.DisplayGetSetChrs(&tempString, "FlowWarn2", mget);	//get low flow warning for sensor 2
+		FlowSens.Flow2Warn = tempString.toInt();
+		Display.DisplayGetSetNum(&tempString, "rate", mget);		//get the sampling rate in sec
+		FlowSens.SetReadFlowInterval(tempString.toInt() * 1000);	//save the sampling rate in ms
+
+		FlowSens.FlowCalcSetup();		// set up the pins for reading
+		FlowSens.FlowStartStop(true);	// if global setting for turning on flow sensors is on, then enable soft interupts to measure flow.  Note, global settings loaded via SysStat.txt 	
+	}
+	//--------------------------------------------------------------
 	
 	KeyPoll(true);		// Begin polling the keypad S
 	SysTimePoll(true);	// begin to poll the Real Time Clock to get system time into SysTm
@@ -2509,12 +2822,22 @@ void loop()
 
 				if (Display.DisplaySelection == "Edit_0")
 				{
+					String tmpStr;
+					int	tmpInt;
 					Serial.println(F("TempSens-->Action-->Edit_0"));	//debug
 					Display.DisplaySetup(false, true, "TSens0", 8, DisplayBuf); // Put up first temp sens setup display array and display the first line
-					// populate the address in the display line
-					//tempAddrLt, U - D----CCCCCCCC - , ----Addr_Lt----, U / D    28FFC38E
-					//tempAddrRt, U - D----CCCCCCCC - , ----Addr_Rt----, U / D    541400DA
-					//jf here
+				
+					/*	Text1, text, -- - Tmp Sensor 0-- - , Parameter set up for temperature sensor 0
+						IsOn, U - D-------- - C - , -On / Off status - , U / D Is on ? Y
+						tempThresh, U - D--###------, --Alrm Thresh--, U / D  090 deg F
+						tempAddrLt, U - D----CCCCCCCC - , ----Addr_Lt----, U / D    28FFA4F9
+						tempAddrRt, U - D----CCCCCCCC - , ----Addr_Rt----, U / D    541400B4
+						tempName, U - D--CCCCCCCCCC, ----Name Str----, U / D  Pond Temp
+						handle, U - D--CCCCCCCCCC, -- - Cloud Str-- - , U / D ? ? ? ? ? ? ? ? ? ? ?
+						
+						note: the tempAddrLt and Rt were updated during the TSens.Init method
+						*/
+
 				}
 				else
 				if (Display.DisplaySelection == "Edit_1")

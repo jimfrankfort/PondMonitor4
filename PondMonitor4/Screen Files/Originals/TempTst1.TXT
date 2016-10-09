@@ -1,0 +1,3 @@
+Text1,text,---Tmp Test 1---,Halts measurement and tests temperature sensor 1
+tempValue,U-D--#####----,--Temp Value--,U/D  ##### F
+action,menu,---Action---,Begin_Test   End_Test

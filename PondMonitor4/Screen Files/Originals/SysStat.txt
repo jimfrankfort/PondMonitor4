@@ -1,0 +1,6 @@
+text1,text,-System status-,Status of sensors and relays
+Temp,U-D----------CCC,--Temp: On/Off--,U/D  Temp is On
+Flow,U-D----------CCC,--Flow: On/Off--,U/D  Flow is On 
+Wlvl,U-D----------CCC,--WLvl: On/Off--,U/D  WLvl is On 
+Relay,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto
+action,menu,---Action---,Return

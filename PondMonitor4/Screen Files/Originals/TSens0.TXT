@@ -1,0 +1,8 @@
+Text1,text,---Tmp Sensor 0---,Parameter set up for temperature sensor 0
+IsOn,U-D---------C-,-On/Off status-,U/D Is on?  Y 
+tempThresh,U-D--###------,--Alrm Thresh--,U/D  090 deg F
+tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFA4F9 
+tempAddrRt,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400B4 
+tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp  
+handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
+action,menu,---Action---,Update   Cancel

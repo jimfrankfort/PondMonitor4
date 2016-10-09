@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataroot xmlns:od="urn:schemas-microsoft-com:officedata" generated="2016-07-27T08:46:45">
+<ErrorLog>
+<LogDate>2016-07-27T00:00:00</LogDate>
+<LogEngry>this is an error log entry</LogEngry>
+<LogLevel>1</LogLevel>
+</ErrorLog>
+<ErrorLog>
+<LogDate>2016-07-28T00:00:00</LogDate>
+<LogEngry>this is the second error entry</LogEngry>
+<LogLevel>2</LogLevel>
+</dataroot>
