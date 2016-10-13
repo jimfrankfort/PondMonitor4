@@ -48,8 +48,8 @@ int SysTmPoleContext;	// ID of timer used to poll system time
 boolean	InMonitoringMode = true;	//if true, then system is in monitoring mode and sensors are sampled/recorded
 boolean TempSensorsOn, FlowSensorsOn, WaterLvlSensorsOn;	// sensors on/off for the purposes of monitoring.  Values read in from SysStat.txt.  User can change these with UI, but system reads state at startup
 String	PumpMode;											// relay state read in from SysStat.txt. Auto=controlled by water level sensor logic, on/off are manual 
-boolean InFlowSens0TestMode = false;	// for testing and setup of flow sensor #0
-boolean InFlowSens1TestMode = false;	// for testing and setup of flow sensor #1
+boolean InFlowSensTestMode = false;		// for testing and setup of flow sensors
+//boolean InFlowSens1TestMode = false;	// for testing and setup of flow sensor #1
 boolean InTempSens0TestMode = false;	// for testing and setup of temperature sensor #0
 boolean InTempSens1TestMode = false;	// for testing and setup of temperature sensor #1
 boolean InWaterLvlTestMode = false;	// for testing and setup of water level sensor
@@ -2037,6 +2037,7 @@ public:
 	void FlowCalcSetup(void);				//sets up pins for flow sensors	
 	void FlowStartStop(boolean Start);		// if Start=true then enable soft interupts to measure flow, else turn them off.
 	void SetReadFlowInterval(unsigned long interval);	//sets soft interupt for how often to read the flow sensors
+	unsigned long GetReadFlowInterval(void);	// returns the soft interupt interval for reading flow sensors
 	void FlowCalcTick(void);				// called to check for changes of state of flow sensors
 
 	void FlowCalcBegin(void);				// sets counters at the start of a flow calculation
@@ -2080,6 +2081,13 @@ void FlowSensors::SetReadFlowInterval(unsigned long interval)
 	}
 }
 //----------------------------------------------------------------------
+unsigned long FlowSensors::GetReadFlowInterval(void)
+{
+	//returns the value of a private variable
+	return ReadFlowInterval;
+}
+//----------------------------------------------------------------------
+
 void FlowSensors::FlowCalcBegin()		// sets counters at the start of a flow calculation
 {
 	flow1tick = flow2tick = 0;	// zero out flow sensor frequency counters
@@ -2092,7 +2100,6 @@ void FlowSensors::FlowCalcTick(void)			// called by FlowcalcTickRedirect to chec
 {
 	//flow1=digitalRead(flowmeter1);
 	//flow2=digitalRead(flowmeter2);
-	//flow3=digitalRead(flowmeter3);
 
 	if (digitalRead(flowmeter1) != FlowState1)
 	{
@@ -2178,7 +2185,7 @@ public:
 	DeviceAddress	Saddr;			// I2C address of the sensor
 	String			SensName;		// string name for the sensor.  e.g. Pond Temp
 	String			SensHandle;		// Not currently used: string 'handle' used to ID sensor in internet data stream. 
-	boolean			IsOn;			// true if activly taking sensor readings else false
+	boolean			IsOn;			// true if sensor has been initialized and once 'turned on', we will activly taking sensor readings else false
 	float	TempC;					// last temperature reading in celcius.	if -100 then not valid
 	float	TempF;					// last temperature reading in farenheight.  If-100 then not valid
 	float	AlarmThreshHigh;		// temperature (F) that will trigger high temp alarm...getting too hot!
@@ -2452,14 +2459,14 @@ void setup()
 		TempSens0.TempSensorInit(0);		// initialize device, get address, set precision.  Address comes from device.  Precision is #define
 		TempSens1.TempSensorInit(1);		// initialize device, get address, set precision
 
-		/* Set the polling interval for these temp sensors.  The polling interval is stored on SD in Tempsens.txt
-			Tempsens.txt
-			Text1, text, -- - Tmp Sensor-- - , Functions related to temperature sensors
-			rate, U - D-------- - ### - , --Sample Rate--, U / D   Every 060s
-			action, menu, -- - Action-- - , Update  Cancel  Edit_0  Edit_1  Test_0  Test_1
-			*/
-		Display.DisplaySetup(mReadOnly, mUseSD, "Tempsens", 4, DisplayBuf);	//get the display array into the buffer
-		Display.DisplayGetSetNum(&tempString, "rate", mget);			// read the polling rate
+		/* Set the polling interval for these temp sensors.  The polling interval is stored on SD in TempRate.txt
+			TempRate.txt
+			text1,text,--Sample Rate--,Set sample rate for both temp sensors
+			rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
+			action,menu,---Action---,Update  Cancel
+		*/
+		Display.DisplaySetup(mReadOnly, mUseSD, "TempRate", 3, DisplayBuf);	//get the display array into the buffer
+		Display.DisplayGetSetNum(&tempString, "rate", mget);				// read the polling rate
 		tempInt = tempString.toInt() * 1000;								//convert to integer polling rate and convert to ms.
 		TempSens0.SetPollInterval(tempInt);
 		TempSens1.SetPollInterval(tempInt);
@@ -2472,7 +2479,7 @@ void setup()
 
 		/*	TSens0 has the following 8 lines
 		Text1, text, -- - Tmp Sensor 0-- - , Parameter set up for temperature sensor 0
-		IsOn, U - D-------- - C - , -On / Off status - , U / D Is on ? Y
+		IsOn, U - D-------- - C - , -On / Off status - , U / D Is on ? Y  jf here, remove this line.  the master on/off for both temp sensors is in sysStat.txt
 		tempThreshH, U - D--###------, --H Temp Thresh-, U / D  090 deg F
 		tempThreshL, U - D--###------, --L Temp Thresh-, U / D  036 deg F
 		tempAddrLt, U - D----CCCCCCCC - , ----Addr_Lt----, U / D    28FFA4F9
@@ -2611,7 +2618,6 @@ void loop()
 	if (ReadKey() != NO_KEY)
 	{
 		// key was pressed and debounced result is ready for processing
-		//Serial.println(LS_curKey);
 		Display.ProcessDisplay(LS_curKey);	// routine will process key only if DisplayInUse==true, global set by DisplayStartStop()	
 	}//if (ReadKey() != NO_KEY)
 
@@ -2630,14 +2636,65 @@ void loop()
 
 			if (Display.DisplayLineName == "SetUp")
 			{
-				//Serial.print("DisplaySelection=|"); Serial.print(Display.DisplaySelection); Serial.println("|");
+				if (Display.DisplaySelection == "Status")
+				{
+					Serial.println(F("Main_UI-->Setup-->Status"));
+					ErrorLog("testing error log with Status", 1);
+				}
+				else
+		
+				if (Display.DisplaySelection == "Temp_sensor")
+				{
+					if (TempSensorsOn)
+					{
+						//global for temperature sensor (set is SysStat.txt) is on, so can proceed, else error
+						dprintln(F("Main_UI-->SetUp-->Temp_sensor"));	//debug
+						Display.DisplaySetup(false, true, "tempsens", 4, DisplayBuf); // put up entry screen for temperature sensor display array and display the first line
+					}
+					else
+					{
+						Display.DisplaySetup(mReadOnly, mUseSD, "TestErr", 3, DisplayBuf);	//put up error message telling user to turn on sensor first
+					}									
+				}
+				else
+				
+				if (Display.DisplaySelection == "Flow_sensor")
+				{
+					if (FlowSensorsOn)
+					{
+						dprintln(F("Main_UI-->SetUp-->Flow_sensor"));	//debug
+						Display.DisplaySetup(mReadOnly, mUseSD, "FlowSens", 2, DisplayBuf);	//put up the display for user to make selections regarding flow sensors
+					}
+					else
+					{
+						Display.DisplaySetup(mReadOnly, mUseSD, "TestErr", 3, DisplayBuf);	//put up error message telling user to turn on sensor first
+					}
+
+				}
+				else
+
+				if (Display.DisplaySelection == "WaterLevel")
+				{
+					if (WaterLvlSensorsOn)
+					{
+						dprintln(F("Main_UI-->Setup-->WaterLevel"));
+						//jf here, add display array for flow sensors
+					}
+					else
+					{
+						Display.DisplaySetup(mReadOnly, mUseSD, "TestErr", 3, DisplayBuf);	//put up error message telling user to turn on sensor first
+					}
+
+				}
+				else
+
 				if (Display.DisplaySelection == "RTC")
 				{
 					boolean	rslt;
-					Display.DisplaySetup(false, true, "SetRTC_ui", 5, DisplayBuf); // Prepare SetRTC_ui display array, display the first line, mode is read/write, retrieve SetRTC_ui from the SD card
+					Display.DisplaySetup(mReadWrite, mUseSD, "SetRTC_ui", 5, DisplayBuf); // Prepare SetRTC_ui display array, display the first line, mode is read/write, retrieve SetRTC_ui from the SD card
 
-																				   //RTC is read every second and sets strings for day of week, time, and date
-																				   //modify the display lines in the SetRTC_ui array
+					//RTC is read every second and sets strings for day of week, time, and date
+					//modify the display lines in the SetRTC_ui array
 
 					rslt = Display.DisplayGetSetDate(&SysDateStr, "Date", true);	// replace the date string in display line named 'Date' in the SetRTC_up array
 					rslt = Display.DisplayGetSetTime(&SysTmStr, "Time", true);		// replace the time string in display line named 'Time'.  need to clip off sec
@@ -2646,50 +2703,29 @@ void loop()
 
 				}
 				else
+
 				{
-					if (Display.DisplaySelection == "Temp_sensor")
-					{
-						Serial.println(F("Main_UI-->SetUp-->Temp_sensor"));	//debug
-						Display.DisplaySetup(false, true, "tempsens", 4, DisplayBuf); // put up entry screen for temperature sensor display array and display the first line
-					}
-					else
-					{
-						if (Display.DisplaySelection == "Flow_sensor")
-						{
-							Display.DisplaySetup(mReadOnly, mUseSD, "FlowSens", 2, DisplayBuf);	//put up the display for user to make selections regarding flow sensors
-							Serial.println(F("Main_UI-->SetUp-->Flow_sensor"));	//debug
-							ErrorLog("test of error log for flow sensor", 2);
-						}
-						else
-						{
-							if (Display.DisplaySelection == "WaterLevel")
-							{
-								Serial.println(F("Main_UI-->Setup-->WaterLevel"));
-								ErrorLog("test of error log for water level", 3);
-							}
-							else
-							{
-								if (Display.DisplaySelection == "Status")
-								{
-									Serial.println(F("Main_UI-->Setup-->Status"));
-									ErrorLog("testing error log with Status", 1);
-								}
-								else
-								{
-									//error, should have identified the DisplaySelection
-									ErrorLog("error processing Main_UI, Setup: did not match DisplaySection",2);
-								}
-							}
-						}
-					}
-
+					//error, should have identified the DisplaySelection
+					ErrorLog("error processing Main_UI, Setup: did not match DisplaySection", 2);
+					dprint(F("error processing Main_UI-->Setup: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);	//debug
 				}
-				goto EndDisplayProcessing; //exit processing Display	
 
+				goto EndDisplayProcessing; //exit processing Display	
 			}
 
-			//if here then entry not processed, which is an error
+			
+			if (Display.DisplayLineName == "Pumps")
+			{
+				//jf here, add processing  for pumps
+
+				goto EndDisplayProcessing; //exit processing Display	
+			}
+			
+
+			//if here then display line not processed, which is an error
 			ErrorLog("error processing Main_UI: unrecognized DisplayLineName",2);
+			dprint(F("error processing Main_UI : unrecognized DisplayLineName=")); dprintln(Display.DisplayLineName);	//debug
+			goto EndDisplayProcessing; //exit processing Display				
 		}
 
 		if (Display.DisplayName == "SetRTC_ui")
@@ -2794,85 +2830,94 @@ void loop()
 		if (Display.DisplayName == "tempsens")
 		{
 			/*  
+			Tempsens.txt
 			Text1,text,---Tmp Sensor---,Functions related to temperature sensors
-			action1,menu,---Edit/Test---,Edit_0   Edit_1   Test_0   Test_1
-			rate,U-D---------###-,--Sample Rate--,U/D   Every 060s  
-			action,menu,---Action---,Update  Cancel
+			action1,menu,---Edit/Test---,Sample_Rate  Edit_0   Edit_1   Test_0   Test_1  Cancel
 			*/
-			if (Display.DisplayLineName == "action")
-			{
-				if (Display.DisplaySelection == "Update") 
-				{
-					Serial.println(F("TempSens-->Action-->Update"));	//debug
-				}
-				else
-				if(Display.DisplaySelection == "Cancel")
-				{
-					Serial.println(F("TempSens-->Action-->Cancel"));	//debug					
-					Display.DisplaySetup(false, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
-				}
-				else
-				{
-					ErrorLog("error processing TempSens-->action: unrecognized DisplaySelection",2);
-					Serial.print(F("error processing TempSens-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
-				}
-			}
-			goto EndDisplayProcessing; //exit processing Display
 
-			///////////////////////////
 			if (Display.DisplayLineName == "action1")
 			{
-
+				if (Display.DisplaySelection == "Sample_Rate")
+				{
+					dprint(F("TempSens-->Action1-->Sample_Rate"));	//debug
+					Display.DisplaySetup(mReadWrite, mUseSD, "TempRate", 3, DisplayBuf);	//put up display array so we can set the sampling rate for the temp sensors
+				}
+				else
 				if (Display.DisplaySelection == "Edit_0")
 				{
-					String tmpStr;
-					int	tmpInt;
-					Serial.println(F("TempSens-->Action-->Edit_0"));	//debug
-					Display.DisplaySetup(false, true, "TSens0", 8, DisplayBuf); // Put up first temp sens setup display array and display the first line
-				
-					/*	Text1, text, -- - Tmp Sensor 0-- - , Parameter set up for temperature sensor 0
-						IsOn, U - D-------- - C - , -On / Off status - , U / D Is on ? Y
-						tempThresh, U - D--###------, --Alrm Thresh--, U / D  090 deg F
-						tempAddrLt, U - D----CCCCCCCC - , ----Addr_Lt----, U / D    28FFA4F9
-						tempAddrRt, U - D----CCCCCCCC - , ----Addr_Rt----, U / D    541400B4
-						tempName, U - D--CCCCCCCCCC, ----Name Str----, U / D  Pond Temp
-						handle, U - D--CCCCCCCCCC, -- - Cloud Str-- - , U / D ? ? ? ? ? ? ? ? ? ? ?
-						
-						note: the tempAddrLt and Rt were updated during the TSens.Init method
-						*/
 
+					Serial.println(F("TempSens-->Action-->Edit_0"));	//debug
+					Display.DisplaySetup(mReadWrite, mUseSD, "TSens0", 8, DisplayBuf); // Put up first temp sens setup display array and display the first line
 				}
 				else
 				if (Display.DisplaySelection == "Edit_1")
 				{
+					// see comments for Edit_0
 					Serial.println(F("TempSens-->Action-->Edit_1"));	//debug
-					Display.DisplaySetup(false, true, "TSens1", 8, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
-					// populate the address in the display line
-					//tempAddrLt, U - D----CCCCCCCC - , ----Addr_Lt----, U / D    28FFC38E
-					//tempAddrRt, U - D----CCCCCCCC - , ----Addr_Rt----, U / D    541400DA
-					//jf here
+					Display.DisplaySetup(mReadWrite, mUseSD, "TSens1", 8, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
 				}
 				else
 				if (Display.DisplaySelection == "Test_0")
 				{
-					Serial.println(F("TempSens-->Action-->TempTst0"));	//debug
-					Display.DisplaySetup(false, true, "TempTst0", 4, DisplayBuf); // Put up test temp sens 0 display array and display the first line
+					dprintln(F("TempSens-->Action-->TempTst0"));	//debug
+					Display.DisplaySetup(mReadWrite, mUseSD, "TempTst0", 4, DisplayBuf); // Put up test temp sens 0 display array and display the first line
 				}
 				else
 				if (Display.DisplaySelection == "Test_1")
 				{
-					Serial.println(F("TempSens-->Action-->TempTst1"));	//debug
-					Display.DisplaySetup(false, true, "TempTst1", 4, DisplayBuf); // Put up test temp sens 1 display array and display the first line
+					dprintln(F("TempSens-->Action-->TempTst1"));	//debug
+					Display.DisplaySetup(mReadWrite, mUseSD, "TempTst1", 4, DisplayBuf); // Put up test temp sens 1 display array and display the first line
+				}
+				else
+				if (Display.DisplaySelection == "Cancel")
+				{
+					dprint(F("TempSens-->Action1-->Cancel"));	//debug					
+					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
 				}
 				else
 				{
 					ErrorLog("error processing TempSens-->action1: unrecognized DisplaySelection", 2);
-					Serial.print(F("error processing TempSens-->action1: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
+					dprint(F("error processing TempSens-->action1: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 				}
 			}
 			goto EndDisplayProcessing; //exit processing Display
+		}
 
-			//////////////////////////
+		if (Display.DisplayName == "TempRate")
+		{
+			/*
+			if here, then processing user interaction with display array used to set the sampling rate for both temp sensors.
+				TempRate.txt
+				text1,text,--Sample Rate--,Set sample rate for both temp sensors
+				rate,U-D---------###-,--Sample Rate--,U/D   Every 060s  
+				action,menu,---Action---,Update  Cancel
+			*/
+			int tempInt;
+			if (Display.DisplayLineName == "action")
+			{
+				if (Display.DisplaySelection == "Update")
+				{
+					dprintln(F("TempRate-->Action-->Update"));	//debug
+					//read the rate from the display array, set the rate, and save the display array back to SD
+					Display.DisplayGetSetNum(&tempString, "rate",mget);	//get the string of the sampling rate
+					tempInt = tempString.toInt() * 1000;				//convert to integer polling rate and convert to ms.
+					TempSens0.SetPollInterval(tempInt);					// set the polling interval for both temp sensors.
+					TempSens1.SetPollInterval(tempInt);
+					Display.DisplayWriteSD();							// save the display array on SD
+				}
+				else
+					if (Display.DisplaySelection == "Cancel")
+					{
+						dprintln(F("TempRate-->Action-->Cancel"));	//debug					
+						Display.DisplaySetup(false, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+					}
+					else
+					{
+						ErrorLog("error processing TempRate-->action: unrecognized DisplaySelection", 2);
+						dprint(F("error processing TempRate-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+					}
+			}
+			goto EndDisplayProcessing; //exit processing Display
 		}
 
 		if (Display.DisplayName == "TSens1")
@@ -3014,8 +3059,9 @@ void loop()
 					if (Display.DisplaySelection == "Test_sensors")
 					{
 						dprint(F("FlowSens-->action1-->FlowTest"));	//debug
-						Display.DisplaySetup(mReadWrite, mUseSD, "FlowTest", 4, DisplayBuf);	//put up display array to test flow sensors.
+						Display.DisplaySetup(mReadWrite, mUseSD, "FlowTest", 8, DisplayBuf);	//put up display array to test flow sensors.
 					}
+					else
 						if (Display.DisplaySelection == "Cancel")
 						{
 							dprint(F("FlowSens-->action1-->Cancel"));	//debug
@@ -3077,7 +3123,44 @@ void loop()
 
 		}	// end processing DisplayName== "FlowEdit"
 
-		//jf, add processing for FlowTest
+		if (Display.DisplayName == "FlowTest")
+		{
+			/*if here then processing FlowTest
+
+			FlowTest.txt
+			Text1,text,---Flow Test---,Halts measurement and tests flow sensors 1 & 2
+			Flow1Value,U-D--###,--Flow1 Value--,U/D  ### l/min
+			Flow2Value,U-D--###,--Flow2 Value--,U/D  ### l/min
+			action,menu,---Action---,Begin_Test   End_Test
+
+			*/
+			if (Display.DisplayLineName == "Action")
+			{
+				if (Display.DisplaySelection == "Begin_Test")
+				{
+					dprintln(F("FlowTest-->action-->Begin_Test"));	//debug
+					InMonitoringMode = false;	// flag to end monitoring mode....stop reading and logging sensor readings
+					InFlowSensTestMode = true;	// flag to tell system we are testing the flow sensors
+					FlowSens.SetReadFlowInterval(FlowTestingInterval);	// sets the testing interval, e.g. make reading every 5 sec
+					Display.DisplayLineRefresh("Flow1Value");	// show the display line for where the flow rate for flow sens1 will be displayed
+				}
+				else
+					if (Display.DisplaySelection == "End_Test")
+					{
+						dprintln(F("FlowTest-->action-->End_Test"));	//debug
+						InMonitoringMode = true;		// flag to resume monitoring mode....resume reading and logging sensor readings
+						InFlowSensTestMode = false;		// flag to end flow sens testing
+						FlowSens.SetReadFlowInterval(FlowSens.GetReadFlowInterval());	//retrore soft interupt for when to read the flow sensors during monitoring
+						Display.DisplaySetup(mReadWrite,mUseSD,"FlowSens",2,DisplayBuf); // return to the entry screen for flow  sensor display array and display the first line
+					}					
+					else
+					{
+						ErrorLog("error processing FlowTest-->action: unrecognized DisplaySelection", 2);
+						dprint(F("error processing FlowTest-->action:: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+					}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}	// end processing DisplayName== "FlowTest"
 
 		//jf add  processing for new screens here
 		
@@ -3275,6 +3358,47 @@ EndDisplayProcessing:	//target of goto. common exit for processing display array
 			//Serial.print("Temperature for tempSens0 = "); Serial.println(tmpStr);	//debug			
 		}
 	} // end 	if(!InMonitoringMode)
+	  //------------------------------------------------------------------------------------------
+
+	if (InFlowSensTestMode && FlowSens.FlowReadReady)
+	{
+		/*
+		if here, then in flow sensor testing mode and we have a valid reading.  
+		We want to update 2 display lines in display named FlowTest with the flow rates in l/min
+
+			FlowTest.txt
+			{snip}
+			Flow1Value,U-D--###,--Flow1 Value--,U/D  ### l/min
+			Flow2Value,U-D--###,--Flow2 Value--,U/D  ### l/min
+			Flow1Dur,U-D--##----,--Flow1Dur--,U/D  ## ms
+			Flow2Dur,U-D--##----,--Flow2Dur--,U/D  ## ms
+			action,menu,---Action---,Begin_Test   End_Test
+		*/
+		String tmpStr;
+		FlowSens.FlowReadReady = false;	//reset because we are processing this
+
+		//enter flow rate and frequency of cycling.  We are sampling at 5ms, so want the cycle time to be <= 10ms (nyquist freq, sample rate should be minimym of 2x frequency)
+		tmpStr = String(FlowSens.FlowValue1, 0);
+		Display.DisplayGetSetNum(&tmpStr, "Flow1Value", mset);	// set the value, 0 dec
+		Display.DisplayLineRefresh("Flow1Value");				// update display if this is the line user is looking at
+
+		tmpStr = String(FlowSens.flow1dur, 0);
+		Display.DisplayGetSetNum(&tmpStr, "Flow1Dur", mset);
+		Display.DisplayLineRefresh("Flow1Dur");
+
+		tmpStr = String(FlowSens.FlowValue2, 0);
+		Display.DisplayGetSetNum(&tmpStr, "Flow2Value", mset);
+		Display.DisplayLineRefresh("Flow2Value");
+
+		tmpStr = String(FlowSens.flow2dur, 0);
+		Display.DisplayGetSetNum(&tmpStr, "Flow2Dur", mset);
+		Display.DisplayLineRefresh("Flow2Dur");
+
+		FlowSens.FlowCalcBegin();	// begin the next reading
+	}
+
+	//jf here,  simplify temp sensors to rely on global temp sensor on/off
+
 	//End----------------------------------------------------------Testing Mode---------------------------------------------------------------------
 
 

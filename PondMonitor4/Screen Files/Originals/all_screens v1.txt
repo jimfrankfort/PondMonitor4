@@ -12,9 +12,14 @@ Relay,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto
 action,menu,---Action---,Return
 */
 
+	//old
 Tempsens.txt
 Text1,text,---Tmp Sensor---,Functions related to temperature sensors
-action1,menu,---Edit/Test---,Edit_0   Edit_1   Test_0   Test_1
+action1,menu,---Edit/Test---,Sample_Rate  Edit_0   Edit_1   Test_0   Test_1
+
+	
+TempRate.txt
+text1,text,--Sample Rate--,Set sample rate for both temp sensors
 rate,U-D---------###-,--Sample Rate--,U/D   Every 060s  
 action,menu,---Action---,Update  Cancel
 
