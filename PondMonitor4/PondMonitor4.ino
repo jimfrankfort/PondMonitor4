@@ -50,8 +50,8 @@ boolean TempSensorsOn, FlowSensorsOn, WaterLvlSensorsOn;	// sensors on/off for t
 String	PumpMode;											// relay state read in from SysStat.txt. Auto=controlled by water level sensor logic, on/off are manual 
 boolean InFlowSensTestMode = false;		// for testing and setup of flow sensors
 //boolean InFlowSens1TestMode = false;	// for testing and setup of flow sensor #1
-boolean InTempSens0TestMode = false;	// for testing and setup of temperature sensor #0
-boolean InTempSens1TestMode = false;	// for testing and setup of temperature sensor #1
+boolean InTempSensTestMode = false;	// for testing and setup of temperature sensor #0 & #1
+//boolean InTempSens1TestMode = false;	// for testing and setup of temperature sensor #1
 boolean InWaterLvlTestMode = false;	// for testing and setup of water level sensor
 boolean	TransmitReadings = false;	// if true, then system will radio sensor readings to companion system to upload to cloud
 
@@ -326,28 +326,6 @@ public:
 } Display;
 
 
-
-
-/*String DisplayDay[31]= {"01","02","03","04","05","06","07","08","09","10",
-"11","12","13","14","15","16","17","18","19","20",
-"21","22","23","24","25","26","27","28","29","30","31"};	// day will advance 2 chr at a time
-
-String DisplayYear[10]= {"0","1","2","3","4","5","6","7","8","9"};	//year will advance 1 chr at a time
-String DisplayHour[24]= {"00","01","02","03","04","05","06","07","08","09","10",
-"11","12","13","14","15","16","17","18","19","20","21","22","23"};	// hour will advance 2 chr at a time
-String DisplayMin[60]= {"00","01","02","03","04","05","06","07","08","09","10",
-"11","12","13","14","15","16","17","18","19","20",
-"21","22","23","24","25","26","27","28","29","30",
-"31","32","33","34","35","36","37","38","39","40",
-"41","42","43","44","45","46","47","48","49","50",
-"51","52","53","54","55","56","57","58","59"};
-String DisplayNum[10]= {"0","1","2","3","4","5","6","7","8","9"};	//numbers advance 1 chr at a time
-String DisplayChar[64]= {"a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z",
-"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z",
-"0","1","2","3","4","5","6","7","8","9","-","_"};
-String DisplayDOW[7]=	{"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};	//days of the week start on sunday and are 3 chr's each
-
-*/
 //-------------------------------------------------Display Class routines----------------------------------------------
 DisplayClass::DisplayClass(void)
 {
@@ -1979,9 +1957,8 @@ uint16_t getFreeSram() {
 		return (((uint16_t)&newVariable) - ((uint16_t)__brkval));
 };
 
-
+//-------------------------------------- ---------Flow Sensor variables and class--------------------------------------
 /*
--------------------------------------------------------------Flow Sensor variables and class--------------------------------------------------
 YF-S201 Hall Effect Water Flow Meter / Sensor
 two flow sensors attached, each to its own input pin.
 We use a timer event and polling to read the value of the flow sensors, incrementing a flow sensor
@@ -2178,14 +2155,15 @@ protected:
 	String			Sname;			// name of sensor to use with logs and displays
 	String			SIDstring;		// string of ID for sensor when used in cloud based data logging
 
-	boolean			IsOnStorage;	// saves the state of IsOn during testing mode
+	//boolean			IsOnStorage;	// saves the state of IsOn during testing mode
 	long int		PollInterval;	// polling interval
+	long int		PollIntervalStorage;	// holds prior poll interval when it is changed for testing
 	int				SensorPollContext;	//variable set by SensTmr and passed by code into SensTmr.  It is an index for the timer object
 public:
 	DeviceAddress	Saddr;			// I2C address of the sensor
 	String			SensName;		// string name for the sensor.  e.g. Pond Temp
 	String			SensHandle;		// Not currently used: string 'handle' used to ID sensor in internet data stream. 
-	boolean			IsOn;			// true if sensor has been initialized and once 'turned on', we will activly taking sensor readings else false
+	//boolean			IsOn;			// true if sensor has been initialized and once 'turned on', we will activly taking sensor readings else false
 	float	TempC;					// last temperature reading in celcius.	if -100 then not valid
 	float	TempF;					// last temperature reading in farenheight.  If-100 then not valid
 	float	AlarmThreshHigh;		// temperature (F) that will trigger high temp alarm...getting too hot!
@@ -2212,10 +2190,10 @@ methods for Temperature sensor class
 void	TempSensor::TempSensorInit(byte SN)
 {
 	// constructor, 0 stuff out, find device address, set precision
-	IsOn = false;
+	//IsOn = false;
 	Sname = SIDstring = "";
 	TempC = TempF = -100;	//preset to value indicating invalid temp...probably not needed because of TempSensReady
-	PollInterval = TempMonitoringInterval;	//default polling rate in MS
+	//PollInterval = TempMonitoringInterval;	//default polling rate in MS
 	Snum = SN;
 	TempSensReady = false;	// tells main loop that the temperature readings are not ready to be read
 
@@ -2248,6 +2226,7 @@ void	TempSensor::TempSensorInit(byte SN)
 	}
 }
 //----------------------------------------------------------------------
+/*
 void	TempSensor::TurnOn(boolean TurnOn)
 {
 
@@ -2255,33 +2234,33 @@ void	TempSensor::TurnOn(boolean TurnOn)
 	if (TurnOn)
 	{
 		//if here, then we want to turn on the polling for taking temperature readings.  We use SensTmr object of the Timer class
-		IsOn = true;	//flag that we are taking Temperature sensor readings
+		//IsOn = true;	//flag that we are taking Temperature sensor readings
 		SensorPollContext = SensTmr.every(PollInterval, SensorPollRedirect, (void*)2);	// begin polling temp readings, call SensorPollRedirect at intervals of PollInterval. timer index = SensorPollContext
 	}
 	else
 	{
 		// turn off polling for temperature sensor readings
-		IsOn = false;	//flag that we are not taking temperature sensor readings
+		//IsOn = false;	//flag that we are not taking temperature sensor readings
 		SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context
 	}
 	TempSensReadDealyIsDone = false;		// flag used by soft interupt to read temp sensor.
 };
+*/
 //----------------------------------------------------------------------
 void	TempSensor::TestMode(boolean StartTesting)
 {
 	// Preserves the state of IsOn while in testing mode.  If true, saves the state of IsOn, sets IsOn=true, and changes polling rate. If false, resumes prior state of IsOn and polling interval
 	if (StartTesting)
 	{
-		IsOnStorage = IsOn;	// save the state of IsOn, the on off switch for this temp sensor
-		TurnOn(true);		// indicate sensor is on
+		PollIntervalStorage = PollInterval;	// save the polling interval used for measurement
+		TempSensReadDealyIsDone = false;		// flag used by soft interupt to read temp sensor.	
 		SetPollInterval(TempTestingInterval);	// sample at interval appropriate for testing. e.g. every 3 sec
 	}
 	else
 	{
 		//testing done, resume prior state
-		IsOn = IsOnStorage;	//restore on/off state for monitoring
-		SetPollInterval(PollInterval);	//resume prior polling interval 
-		if (!IsOn) TurnOn(false);		//turn off soft interupt.
+		TempSensReadDealyIsDone = false;		// flag used by soft interupt to read temp sensor.		
+		SetPollInterval(PollIntervalStorage);	//resume prior polling interval 
 	}
 }
 //----------------------------------------------------------------------
@@ -2302,11 +2281,8 @@ void	TempSensor::SetPollInterval(int Delay)
 {
 	//saves the poll interval, changes the poll interval if sensor IsOn=true
 	PollInterval = Delay;
-	if (IsOn)
-	{
-		SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context	
-		SensorPollContext = SensTmr.every(PollInterval, SensorPollRedirect, (void*)2);	// begin polling temp readings at new polling interval
-	}
+	SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context	
+	SensorPollContext = SensTmr.every(PollInterval, SensorPollRedirect, (void*)2);	// begin polling temp readings at new polling interval
 }
 //----------------------------------------------------------------------
 void	TempSensor::printAddress(void) 	// prints the address of temp sensor
@@ -2331,7 +2307,7 @@ void SensorPollRedirect(void* context)
 		// here only if prior call to this routing was made and a 1 sec delay occurred
 		TempSens0.ReadTempSensor();	// read temperature now that 1 sec delay has occurred
 		TempSens1.ReadTempSensor();
-		TempSens0.TempSensReadDealyIsDone = false;	// set to false so when it is time to read the sensors again, we will add a 1 sec delay for conversion time.
+		TempSens0.TempSensReadDealyIsDone = false;				// set to false so when it is time to read the sensors again, we will add a 1 sec delay for conversion time.
 	}
 	else
 	{
@@ -2456,7 +2432,7 @@ void setup()
 
 		dprint("Found "); dprint(tempInt1);	dprintln(" temp sensors.");	//debug
 
-		TempSens0.TempSensorInit(0);		// initialize device, get address, set precision.  Address comes from device.  Precision is #define
+		TempSens0.TempSensorInit(0);		// initialize device, get address, set precision.  Address comes from device.  Precision is #define; IsOn initially set to false, but read from TSens0and TSens1 and set below.
 		TempSens1.TempSensorInit(1);		// initialize device, get address, set precision
 
 		/* Set the polling interval for these temp sensors.  The polling interval is stored on SD in TempRate.txt
@@ -2468,7 +2444,7 @@ void setup()
 		Display.DisplaySetup(mReadOnly, mUseSD, "TempRate", 3, DisplayBuf);	//get the display array into the buffer
 		Display.DisplayGetSetNum(&tempString, "rate", mget);				// read the polling rate
 		tempInt = tempString.toInt() * 1000;								//convert to integer polling rate and convert to ms.
-		TempSens0.SetPollInterval(tempInt);
+		TempSens0.SetPollInterval(tempInt);									//sets the polling interval and begins polling
 		TempSens1.SetPollInterval(tempInt);
 
 		// this sensor uses the polling set by TempSens.  TempSens uses a soft interupt which calls 'SensorPollRedirect', which in turn calls the class specific ReadTempSensor for each instance (tempSens 0 and 1).
@@ -2487,9 +2463,9 @@ void setup()
 		tempName, U - D--CCCCCCCCCC, ----Name Str----, U / D  Pond Temp
 		handle, U - D--CCCCCCCCCC, -- - Cloud Str-- - , U / D ? ? ? ? ? ? ? ? ? ? ?
 		*/
-		//temperature sensor initial on/off status is set above in initialization.  Therefore, the IsOn value must be written into "TSens0"
-		if (TempSens0.IsOn) tempString = "Y"; else tempString = "N";
-		Display.DisplayGetSetChrs(&tempString, "IsOn", mset); // write the status of TempSensorsOn into the line on Display named "IsOn"
+		//if here, temp sensors are on based on global variable.  However, we have 2 temp sensors, and it is possible to have one ontemperature sensors initialized to 'off' in TempSens.TempSensorInit.   initial on/off status is set above in initialization.  Therefore, the IsOn value must be written into "TSens0"
+		//if (TempSens0.IsOn) tempString = "Y"; else tempString = "N";
+		//Display.DisplayGetSetChrs(&tempString, "IsOn", mset); // write the status of TempSensorsOn into the line on Display named "IsOn"
 
 		// read temperature alarm thresholds from that is saved in TSens0.txt into appropriate Tsens class variable.
 		Display.DisplayGetSetNum(&tempString, "tempThreshH", mget);	//get the value as string
@@ -2526,8 +2502,8 @@ void setup()
 		Display.DisplaySetup(false, true, "TSens1", 8, DisplayBuf); // get info from SD card related to temp sensor 0 and use it to populate class variables or read from class variables
 
 																	//temperature sensor initial on/off status is set above in initialization.  Therefore, the IsOn value must be written into "TSens1"
-		if (TempSens1.IsOn) tempString = "Y"; else tempString = "N";
-		Display.DisplayGetSetChrs(&tempString, "IsOn", true); // write the status of TempSensorsOn into the line on Display named "IsOn"
+		//if (TempSens1.IsOn) tempString = "Y"; else tempString = "N";
+		//Display.DisplayGetSetChrs(&tempString, "IsOn", true); // write the status of TempSensorsOn into the line on Display named "IsOn"
 
 															  // read temperature alarm thresholds from that is saved in TSens1.txt into appropriate Tsens class variable.
 		Display.DisplayGetSetNum(&tempString, "tempThreshH", false);	//get the value as string
@@ -2558,11 +2534,8 @@ void setup()
 		Display.DisplayGetSetChrs(&TempSens1.SensHandle, "handle", false); //read the sensor handle from the display into the class
 
 		Display.DisplayWriteSD();	// write the display containing TSens1 back to SD card.
-		//-------------------------------------
-
-		TempSens0.TurnOn(true);						//enable polling temp
-		TempSens0.SetPollInterval(tempInt * 1000);	// set polling interval to delay specified in Tempsens.txt.  Convert to ms
 	}
+
 		//-------------------------------------
 	if (FlowSensorsOn)
 	{
@@ -2857,16 +2830,10 @@ void loop()
 					Display.DisplaySetup(mReadWrite, mUseSD, "TSens1", 8, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
 				}
 				else
-				if (Display.DisplaySelection == "Test_0")
+				if (Display.DisplaySelection == "Test_0&1")
 				{
-					dprintln(F("TempSens-->Action-->TempTst0"));	//debug
-					Display.DisplaySetup(mReadWrite, mUseSD, "TempTst0", 4, DisplayBuf); // Put up test temp sens 0 display array and display the first line
-				}
-				else
-				if (Display.DisplaySelection == "Test_1")
-				{
-					dprintln(F("TempSens-->Action-->TempTst1"));	//debug
-					Display.DisplaySetup(mReadWrite, mUseSD, "TempTst1", 4, DisplayBuf); // Put up test temp sens 1 display array and display the first line
+					dprintln(F("TempSens-->Action-->Test_0&1"));	//debug
+					Display.DisplaySetup(mReadWrite, mUseSD, "TempTst", 5, DisplayBuf); // Put up test temp sens 0 display array and display the first line
 				}
 				else
 				if (Display.DisplaySelection == "Cancel")
@@ -2960,7 +2927,7 @@ void loop()
 			goto EndDisplayProcessing; //exit processing Display
 		}
 
-		if (Display.DisplayName == "TempTst0")
+		if (Display.DisplayName == "TempTst")
 		{
 			/*if here then processing TempTst0
 
@@ -2972,9 +2939,9 @@ void loop()
 			{
 				if (Display.DisplaySelection == "Begin_Test")
 				{
-					Serial.println(F("TempTst0-->action-->Begin_Test"));	//debug
+					Serial.println(F("TempTst-->action-->Begin_Test"));	//debug
 					InMonitoringMode = false;	// flag to end monitoring mode....stop reading and logging sensor readings
-					InTempSens0TestMode = true;	// flag to start temp sens 0 testing
+					InTempSensTestMode = true;	// flag to start temp sens testing
 					TempSens0.TestMode(true);	// save prior state of IsOn, turn on if needed and change the polling interval for testing
 
 					//Note, soft interupt for temp sensor will check if monitoring vs testing and act accordingly.
@@ -2982,59 +2949,22 @@ void loop()
 				else
 				if (Display.DisplaySelection == "End_Test")
 				{
-					Serial.println(F("TempTst0-->action-->End_Test"));	//debug
+					Serial.println(F("TempTst-->action-->End_Test"));	//debug
 					InMonitoringMode = true;		// flag to resume monitoring mode....resume reading and logging sensor readings
-					InTempSens0TestMode = false;	// flag to end temp sens 0 testing
+					InTempSensTestMode = false;	// flag to end temp sens 0 testing
 					TempSens0.TestMode(false);		// restore prior state of IsOn, turn off if needed and change the polling interval for monitoring
 					Display.DisplaySetup(false, true, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 				}
 				else						
 				{
-					ErrorLog("error processing TempTst0-->action: unrecognized DisplaySelection",2);
-					Serial.print(F("error processing TempSens-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
+					ErrorLog("error processing TempTst-->action: unrecognized DisplaySelection",2);
+					Serial.print(F("error processing TempTst-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
 
 				}
 			}
 			goto EndDisplayProcessing; //exit processing Display
-		}	// end processing DisplayName== "TempTst0"
+		}	// end processing DisplayName== "TempTst"
 
-		if (Display.DisplayName == "TempTst1")
-		{
-			/*if here then processing TempTst1
-
-			Text1,text,---Tmp Test 1---,Halts measurement and tests temperature sensor 1
-			tempValue,U-D--###-#----,--Temp Value--,U/D  ###.# F
-			action,menu,---Action---,Begin_Test   End_Test
-			*/
-			if (Display.DisplayLineName == "action")
-			{
-				if (Display.DisplaySelection == "Begin_Test")
-				{
-					Serial.println(F("TempTst1-->action-->Begin_Test"));	//debug
-					InMonitoringMode = false;	// flag to end monitoring mode....stop reading and logging sensor readings
-					InTempSens1TestMode = true;	// flag to start temp sens 0 testing
-					TempSens1.TestMode(true);	// save prior state of IsOn, turn on if needed and change the polling interval for testing
-
-												//Note, soft interupt for temp sensor will check if monitoring vs testing and act accordingly.
-				}
-				else
-					if (Display.DisplaySelection == "End_Test")
-					{
-						Serial.println(F("TempTst1-->action-->End_Test"));	//debug
-						InMonitoringMode = true;		// flag to resume monitoring mode....resume reading and logging sensor readings
-						InTempSens1TestMode = false;	// flag to end temp sens 1 testing
-						TempSens1.TestMode(false);		// restore prior state of IsOn, turn off if needed and change the polling interval for monitoring
-						Display.DisplaySetup(false, true, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
-					}
-					else
-					{
-						ErrorLog("error processing TempTst1-->action: unrecognized DisplaySelection", 2);
-						Serial.print(F("error processing TempTst1-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
-
-					}
-			}
-			goto EndDisplayProcessing; //exit processing Display
-		}	// end processing DisplayName== "TempTst1"
 
 		if (Display.DisplayName == "FlowSens")	
 			/*
@@ -3318,45 +3248,42 @@ EndDisplayProcessing:	//target of goto. common exit for processing display array
 
 	if(!InMonitoringMode)
 	{
-		if (InTempSens0TestMode &&  TempSens0.TempSensReady)
+		if (InTempSensTestMode) 
 		{
-			/*if here, then in temperature sensor testing mode and we have a valid reading.
-			We want to update the display line'tempValue' with the value returned from the sensor
-			TempTst0:
-				Text1,text,---Tmp Test 0---,Halts measurement and tests temperature sensor 0
-				tempValue,U-D--#####----,--Temp Value--,U/D  ##### F
-				action,menu,---Action---,Begin_Test   End_Test
-			*/
+				/*if here, then in temperature sensor testing mode.  check for valid readings and update display
+					TempTst.txt
+					Text1,text,--Tmp Test_0&1--,Halts measurement and tests both temp sensors (cont)
+					Tex22,text,--Tmp Test_0&1--,Temp 0 & 1 values on separate lines.
+					tempValue0,U-D--###-#----,--Temp_0 Value--,U/D  ###.# F
+					tempValue1,U-D--###-#----,--Temp_1 Value--,U/D  ###.# F
+					action,menu,---Action---,Begin_Test   End_Test
+				*/			
+			
 			String tmpStr;
-			TempSens0.TempSensReady = false;					//reset because we are processing this 
-			tmpStr = String(TempSens0.TempF, 1);				//convert float to string with 1 decimal point
-			if ((TempSens0.TempF) < 100) tmpStr = "0" + tmpStr;	//pad if needed because format = ###.#
+			if (TempSens0.TempSensReady)
+			{
 
-			Display.DisplayGetSetNum(&tmpStr, "tempValue", true);	//write the temperature interger as a string with 1 decimal point.
-			Display.DisplayLineRefresh("tempValue");						//refresh the line but only if it is currently displayed
-			//Serial.print("Temperature for tempSens0 = "); Serial.println(tmpStr);	//debug			
+				TempSens0.TempSensReady = false;					//reset because we are processing this 
+				tmpStr = String(TempSens0.TempF, 1);				//convert float to string with 1 decimal point
+				if ((TempSens0.TempF) < 100) tmpStr = "0" + tmpStr;	//pad if needed because format = ###.#
+
+				Display.DisplayGetSetNum(&tmpStr, "tempValue0", true);	//write the temperature interger as a string with 1 decimal point.
+				Display.DisplayLineRefresh("tempValue0");						//refresh the line but only if it is currently displayed
+			}
+
+			if (TempSens1.TempSensReady)
+			{
+				TempSens1.TempSensReady = false;					//reset because we are processing this 
+				tmpStr = String(TempSens1.TempF, 1);				//convert float to string with 1 decimal point
+				if ((TempSens1.TempF) < 100) tmpStr = "0" + tmpStr;	//pad if needed because format = ###.#
+
+				Display.DisplayGetSetNum(&tmpStr, "tempValue1", true);	//write the temperature interger as a string with 1 decimal point.
+				Display.DisplayLineRefresh("tempValue1");						//refresh the line but only if it is currently displayed
+			}
+		
 		}
 
-	//------------------------------------------------------------------------------------------
 
-		if (InTempSens1TestMode &&  TempSens1.TempSensReady)
-		{
-			/*if here, then in temperature sensor testing mode and we have a valid reading.
-			We want to update the display line'tempValue' with the value returned from the sensor
-			TempTst1:
-			Text1,text,---Tmp Test 1---,Halts measurement and tests temperature sensor 1
-			tempValue,U-D--#####----,--Temp Value--,U/D  ##### F
-			action,menu,---Action---,Begin_Test   End_Test
-			*/
-			String tmpStr;
-			TempSens1.TempSensReady = false;					//reset because we are processing this 
-			tmpStr = String(TempSens1.TempF, 1);				//convert float to string with 1 decimal point
-			if ((TempSens1.TempF) < 100) tmpStr = "0" + tmpStr;	//pad if needed because format = ###.#
-
-			Display.DisplayGetSetNum(&tmpStr, "tempValue", true);	//write the temperature interger as a string with 1 decimal point.
-			Display.DisplayLineRefresh("tempValue");				//refresh the line but only if it is currently displayed
-			//Serial.print("Temperature for tempSens0 = "); Serial.println(tmpStr);	//debug			
-		}
 	} // end 	if(!InMonitoringMode)
 	  //------------------------------------------------------------------------------------------
 

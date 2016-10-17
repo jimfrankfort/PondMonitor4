@@ -15,7 +15,7 @@ action,menu,---Action---,Return
 //new
 Tempsens.txt
 Text1,text,---Tmp Sensor---,Functions related to temperature sensors
-action1,menu,---Edit/Test---,Sample_Rate  Edit_0   Edit_1   Test_0   Test_1  Cancel
+action1,menu,---Edit/Test---,Sample_Rate  Edit_0   Edit_1   Test_0&1  Cancel
 
 	
 TempRate.txt
@@ -26,7 +26,6 @@ action,menu,---Action---,Update  Cancel
 
 TSens0.txt
 Text1,text,---Tmp Sensor 0---,Parameter set up for temperature sensor 0
-IsOn,U-D---------C-,-On/Off status-,U/D Is on?  Y 
 tempThresh,U-D--###------,--Alrm Thresh--,U/D  090 deg F
 tempAddr,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFA4F9 
 tempAddr,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400B4 
@@ -34,15 +33,16 @@ tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp
 handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
 action,menu,---Action---,Update   Cancel
 
-TempTst0.txt
-Text1,text,---Tmp Test 0---,Halts measurement and tests temperature sensor 0
-tempValue,U-D--###-#----,--Temp Value--,U/D  ###.# F
+TempTst.txt
+Text1,text,--Tmp Test_0&1--,Halts measurement and tests both temp sensors (cont)
+Tex22,text,--Tmp Test_0&1--,Temp 0 & 1 values on separate lines.
+tempValue0,U-D--###-#----,--Temp_0 Value--,U/D  ###.# F
+tempValue1,U-D--###-#----,--Temp_1 Value--,U/D  ###.# F
 action,menu,---Action---,Begin_Test   End_Test
 
 
 TSens1.txt
 Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1
-IsOn,U-D---------C-,-On/Off status-,U/D Is on?  Y 
 tempThresh,U-D--###------,--Alrm Thresh--,U/D  110 deg F
 tempAddr,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFC38E 
 tempAddr,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400DA 
