@@ -1,8 +1,6 @@
 Main_UI.txt
-SetUp,menu,---Set Up---,Status   Temp_sensor  Flow_sensor   WaterLevel   RTC
-Pumps,menu,--Set Pump Pwr--,Auto   Off   On
+SetUp,menu,--Home Screen--,Status   Temp_sensor  Flow_sensor   H20_Lvl_sensor  Pumps  RTC
 
-/*
 SysStat.txt
 text1,text,-System status-,Status of sensors and relays
 Temp,U-D----------CCC,--Temp: On/Off--,U/D  Temp is On
@@ -10,9 +8,8 @@ Flow,U-D----------CCC,--Flow: On/Off--,U/D  Flow is On
 Wlvl,U-D----------CCC,--WLvl: On/Off--,U/D  WLvl is On 
 Relay,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto
 action,menu,---Action---,Return
-*/
 
-//new
+
 Tempsens.txt
 Text1,text,---Tmp Sensor---,Functions related to temperature sensors
 action1,menu,---Edit/Test---,Sample_Rate  Edit_0   Edit_1   Test_0&1  Cancel
@@ -33,13 +30,6 @@ tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp
 handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
 action,menu,---Action---,Update   Cancel
 
-TempTst.txt
-Text1,text,--Tmp Test_0&1--,Halts measurement and tests both temp sensors (cont)
-Tex22,text,--Tmp Test_0&1--,Temp 0 & 1 values on separate lines.
-tempValue0,U-D--###-#----,--Temp_0 Value--,U/D  ###.# F
-tempValue1,U-D--###-#----,--Temp_1 Value--,U/D  ###.# F
-action,menu,---Action---,Begin_Test   End_Test
-
 
 TSens1.txt
 Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1
@@ -50,19 +40,13 @@ tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Device Tmp
 handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
 action,menu,---Action---,Update   Cancel
 
-SetRTC.txt
-Text,text,---RTC Setup---,Used to view/update the date, time, and day of week settings
-Date,m--d----yy--U-D,---RTC Date---,01/01/2015  U/D
-Time,H--M---U-D,---RTC Time---,01:01  U/D
-DOW,a-------U-D,--RTC DOW--,Mon     U/D
-action,menu,---Action---,Update   Cancel
-
-
-
-Temptst1.txt
-Text1,text,---Tmp Test 1---,Halts measurement and tests temperature sensor 1
-tempValue,U-D--###-#----,--Temp Value--,U/D  ###.# F
+TempTst.txt
+Text1,text,--Tmp Test_0&1--,Halts measurement and tests both temp sensors (cont)
+Tex22,text,--Tmp Test_0&1--,Temp 0 & 1 values on separate lines.
+tempValue0,U-D--###-#----,--Temp_0 Value--,U/D  ###.# F
+tempValue1,U-D--###-#----,--Temp_1 Value--,U/D  ###.# F
 action,menu,---Action---,Begin_Test   End_Test
+
 
 FlowSens.txt
 Text1,text,--Flow Sensors--,Functions related to Flow sensors
@@ -87,16 +71,53 @@ Flow1Dur,U-D--##----,--Flow1Dur--,U/D  ## ms
 Flow2Dur,U-D--##----,--Flow2Dur--,U/D  ## ms
 action,menu,---Action---,Begin_Test   End_Test
 
+
+H20Lvl.txt
+Text1,text,--H2O Sensor--,Functions related to water level sensor. (cont)
+Text2,text,--H2O Sensor--,Detects multiple levels of water in filter and (cont)
+Text3,text,--H2O Sensor--,turns on/off upper and lower pump accordingly.
+action1,menu,---Edit/Test---,Edit_setings  Test_sensors  Cancel
+
+H2OTest.txt
+Text1,text,--H2O Lvl Test--,Halts measurement and tests water level sensor (cont)
+Text2,text,--H2O Lvl Test--,Value should be between 0 and 1024. (cont)
+Text3,text,--H2O Lvl Test--,Determine reading for no level--> water not touching sensor (cont)
+Text4,text,--H2O Lvl Test--,Determine reading for mid level--> water mid filter (cont)
+Text5,text,--H2O Lvl Test--,Determine reading for high level--> water 1 inch from top outflow.
+H2OLvl,U-D--####------,-H2O Lvl Value-,U/D  #### l/min
+action,menu,---Action---,Begin_Test   End_Test
+
+H2OEdit.txt
+Text1,text,-H2O Sens Edit-,Used to set water level sensor parameters to control pumps (cont)
+Text1,text,-H2O Sens Edit-,No H2O = water not touching sensor, both pumps on (cont)
+Text1,text,-H2O Sens Edit-,mid H2O = lower pump on, upper off (cont)
+Text1,text,-H2O Sens Edit-,high H20 = both pumps off.
+H2OLvlNo,U-D--####------,--No H2O--,U/D  #### =none
+H2OLvlLow,U-D--####------,--Mid H2O--,U/D  #### = Mid
+H2OLvlMid,U-D--####-------,--High H2O--,U/D  #### = High
+action,menu,---Action---,Save_Levels   Cancel
+
+ 
+
+Pumps.txt
+text1,text,--Pond Pumps--,Functions related to the water pumps, On/Off are static (cont)
+text2,text,--Pond Pumps--,Auto controls pumps by water level sensor.
+action,menu,--Set Pump Pwr--,Auto   Off   On  Cancel
+
+
+
+SetRTC.txt
+Text,text,---RTC Setup---,Used to view/update the date, time, and day of week settings
+Date,m--d----yy--U-D,---RTC Date---,01/01/2015  U/D
+Time,H--M---U-D,---RTC Time---,01:01  U/D
+DOW,a-------U-D,--RTC DOW--,Mon     U/D
+action,menu,---Action---,Update   Cancel
+
+
 TestErr.txt
 Text1,text,--Error--,The sensor you are trying to test is turned off by global setting. --cont--
 Text2,text,--Error--,To test, must first turn sensor on via Main_Menu -->Status.
 action,menu,Continue
-
- 
-
-
-
-
 
 
 

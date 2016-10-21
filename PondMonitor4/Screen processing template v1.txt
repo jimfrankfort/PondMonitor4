@@ -1,0 +1,48 @@
+		
+//------------------begin template------------------------------------------------------------------------------------------
+/*
+template for processing menu action line, entered after user makes a menu selcetion. e.g. "Cancel" or "Update".  look for the variables enclosed in ?? (??variable??).
+use search and replace.  There are a min of three that need to be replaced: 
+	??DisplayName?? = name of display array (file name without path or extension)
+	??DisplayLine?? = line name in display array user made selection from
+	??SelectionX?? = selection made by user, where x=1,2,or 3....you may need to add more.
+*/
+		if (Display.DisplayName == "??DisplayName??")
+		{
+			/*if here then processing ??DisplayName??
+
+			Put text of menu here for reference purposes
+
+			*/
+			if (Display.DisplayLineName == "??DisplayLine??")
+			{
+				if (Display.DisplaySelection == "??Selection1??") 
+				{
+					dprintln(F("??DisplayName??-->??DisplayLine??-->??Selection1??"));	//debug
+				}
+				else
+				if(Display.DisplaySelection == "??Selection2??")
+				{
+					dprintln(F("??DisplayName??-->??DisplayLine??-->??Selection2??"));	//debug
+				}
+				else
+				if (Display.DisplaySelection == "?Selection3??")
+				{
+					dprintln(F("??DisplayName??-->??DisplayLine??-->??Selection3??"));	//debug
+				}
+				else
+				if(Display.DisplaySelection=="Cancel")
+				{
+					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
+					goto EndDisplayProcessing; //exit processing Display	
+				}
+				else
+				{
+					ErrorLog("error processing ??DisplayName??-->??DisplayLine??: unrecognized DisplaySelection",2);
+					dprint(F("error processing TempSens-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+	
+				}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}	// end processing DisplayName== "??DisplayName??"
+//------------------end template------------------------------------------------------------------------------------------

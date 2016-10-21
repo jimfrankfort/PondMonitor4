@@ -2571,7 +2571,7 @@ void setup()
 	SysTimePoll(true);	// begin to poll the Real Time Clock to get system time into SysTm
 
 	Display.DisplayStartStop(true);		// indicate that menu processing will occur. Tells main loop to pass key presses to the Menu
-	Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // Prepare main-UI display array and display the first line, mode is read only.
+	Display.DisplaySetup(true, true, "Main_UI", 1, DisplayBuf); // Prepare main-UI display array and display the first line, mode is read only.
 
 	//ErrorLog("testing errorlog,this is line 1 with error level 1", 1);	//debug
 	//ErrorLog("testing errorlog,this is line 2 with error level 2", 2);	//debug
@@ -2602,9 +2602,8 @@ void loop()
 		if (Display.DisplayName == "Main_UI")
 		{
 
-			/*if here then processing this display array
-			SetUp, menu, -- - Set Up-- - , Status   Temp_sensor  Flow_sensor   WaterLevel   RTC
-			Pumps, menu, --Set Pump Pwr--, Auto   Off   On
+			/*if here then processing Main_UI.txt display array
+			SetUp,menu,--Home Screen--,Status   Temp_sensor  Flow_sensor   H20_Lvl_sensor  Pumps  RTC
 			*/
 
 			if (Display.DisplayLineName == "SetUp")
@@ -2646,11 +2645,11 @@ void loop()
 				}
 				else
 
-				if (Display.DisplaySelection == "WaterLevel")
+				if (Display.DisplaySelection == "H20_Lvl_sensor")
 				{
 					if (WaterLvlSensorsOn)
 					{
-						dprintln(F("Main_UI-->Setup-->WaterLevel"));
+						dprintln(F("Main_UI-->Setup-->H20_Lvl_sensor"));
 						//jf here, add display array for flow sensors
 					}
 					else
@@ -2677,6 +2676,12 @@ void loop()
 				}
 				else
 
+				if(Display.DisplaySelection == "Pumps")
+				{
+					Display.DisplaySetup(mReadWrite, mUseSD, "Pumps", 3, DisplayBuf);	//put up pump control display
+				}
+				else
+
 				{
 					//error, should have identified the DisplaySelection
 					ErrorLog("error processing Main_UI, Setup: did not match DisplaySection", 2);
@@ -2686,21 +2691,49 @@ void loop()
 				goto EndDisplayProcessing; //exit processing Display	
 			}
 
-			
-			if (Display.DisplayLineName == "Pumps")
+		}		
+
+		if (Display.DisplayName == "Pumps")
+		{
+			/*			
+			Pumps.txt
+			text1,text,--Pond Pumps--,Functions related to the water pumps, On/Off are static (cont)
+			text2,text,--Pond Pumps--,Auto controls pumps by water level sensor.
+			Pumps,menu,--Set Pump Pwr--,Auto   Off   On  Cancel
+			*/
+
+			if (Display.DisplayLineName == "action")
 			{
-				//jf here, add processing  for pumps
-
-				goto EndDisplayProcessing; //exit processing Display	
+				if (Display.DisplaySelection == "Auto?") 
+				{
+					dprintln(F("Pumps-->Pumps-->Auto"));	//debug
+				}
+				else
+				if(Display.DisplaySelection == "Off")
+				{
+					dprintln(F("Pumps-->Pumps-->Off"));	//debug
+				}
+				else
+				if (Display.DisplaySelection == "On")
+				{
+					dprintln(F("Pumps-->Pumps-->On"));	//debug
+				}
+				else
+				if(Display.DisplaySelection=="Cancel")
+				{
+					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
+					goto EndDisplayProcessing; //exit processing Display	
+				}
+				else
+				{
+					ErrorLog("error processing Pumps-->action: unrecognized DisplaySelection",2);
+					dprint(F("error processing Pumps-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);	
+				}
 			}
-			
-
-			//if here then display line not processed, which is an error
-			ErrorLog("error processing Main_UI: unrecognized DisplayLineName",2);
-			dprint(F("error processing Main_UI : unrecognized DisplayLineName=")); dprintln(Display.DisplayLineName);	//debug
-			goto EndDisplayProcessing; //exit processing Display				
+			goto EndDisplayProcessing; //exit processing pumps
 		}
 
+	
 		if (Display.DisplayName == "SetRTC_ui")
 		{
 
@@ -2778,7 +2811,7 @@ void loop()
 					if (Display.DisplaySelection == "Cancel")
 					{
 						Serial.println(F("RTC_ui-->action-->Cancel"));
-						Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // user wants to cancel, so return to main-UI display array and display the first line, mode is read only.
+						Display.DisplaySetup(true, true, "Main_UI", 1, DisplayBuf); // user wants to cancel, so return to main-UI display array and display the first line, mode is read only.
 					}
 					else
 					{
@@ -2796,7 +2829,7 @@ void loop()
 				Serial.print((F("length="))); Serial.println(Display.DisplayLineName.length());
 
 			}
-			Display.DisplaySetup(false, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+			Display.DisplaySetup(false, true, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
 			goto EndDisplayProcessing; //exit processing Display	
 		}
 
@@ -2839,7 +2872,7 @@ void loop()
 				if (Display.DisplaySelection == "Cancel")
 				{
 					dprint(F("TempSens-->Action1-->Cancel"));	//debug					
-					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
 				}
 				else
 				{
@@ -2876,7 +2909,7 @@ void loop()
 					if (Display.DisplaySelection == "Cancel")
 					{
 						dprintln(F("TempRate-->Action-->Cancel"));	//debug					
-						Display.DisplaySetup(false, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+						Display.DisplaySetup(false, true, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
 					}
 					else
 					{
@@ -2915,7 +2948,7 @@ void loop()
 				else
 				if (Display.DisplaySelection == "Cancel")
 				{
-					Display.DisplaySetup(true, true, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+					Display.DisplaySetup(true, true, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
 					goto EndDisplayProcessing; //exit processing Display	
 				}
 				else
@@ -2967,10 +3000,6 @@ void loop()
 
 
 		if (Display.DisplayName == "FlowSens")	
-			/*
-			code to process FlowSens, which directs user to either edit settings or test sensors
-			*/
-
 		{
 			/*if here then processing FloSens
 				FlowSens.txt
@@ -2995,7 +3024,7 @@ void loop()
 						if (Display.DisplaySelection == "Cancel")
 						{
 							dprint(F("FlowSens-->action1-->Cancel"));	//debug
-							Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 2, DisplayBuf);	// user canceled, so return to Main_UI
+							Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf);	// user canceled, so return to Main_UI
 						}					
 						else
 						{
@@ -3036,12 +3065,12 @@ void loop()
 					Display.DisplayGetSetNum(&tempString, "rate", mget);		//get the sampling rate in sec
 					FlowSens.SetReadFlowInterval(tempString.toInt() * 1000);	//save the sampling rate in ms
 
-					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
 				}
 				else
 					if (Display.DisplaySelection == "Cancel")
 					{
-						Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 4, DisplayBuf); // Return to main-UI display array and display the first line
+						Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
 					}
 					else
 						{
