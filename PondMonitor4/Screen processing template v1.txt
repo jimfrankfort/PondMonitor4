@@ -39,7 +39,7 @@ use search and replace.  There are a min of three that need to be replaced:
 				else
 				{
 					ErrorLog("error processing ??DisplayName??-->??DisplayLine??: unrecognized DisplaySelection",2);
-					dprint(F("error processing TempSens-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+					dprint(F("error processing ??DisplayName??-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 	
 				}
 			}

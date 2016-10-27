@@ -2,12 +2,15 @@ Main_UI.txt
 SetUp,menu,--Home Screen--,Status   Temp_sensor  Flow_sensor   H20_Lvl_sensor  Pumps  RTC
 
 SysStat.txt
-text1,text,-System status-,Status of sensors and relays
+text1,text,-Config System-,Start up status of sensors. Can be changed through main menu. (cont)
+text2,text,-Config System-,Used to enable / disable sensor functions. (cont)
+text3,text,-Config System-,note: WLvl=water level sensor, RelB= relay board.
 Temp,U-D----------CCC,--Temp: On/Off--,U/D  Temp is On
 Flow,U-D----------CCC,--Flow: On/Off--,U/D  Flow is On 
 Wlvl,U-D----------CCC,--WLvl: On/Off--,U/D  WLvl is On 
-Relay,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto
-action,menu,---Action---,Return
+Relay,U-D----------CCC,--RelB: On/Off--,U/D  RelB is On 
+Pumps,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto
+action,menu,---Action---,Update  Cancel
 
 
 Tempsens.txt
@@ -21,28 +24,46 @@ rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
 action,menu,---Action---,Update  Cancel
 
 
+TSens0.txt----old-----
+	Text1,text,---Tmp Sensor 0---,Parameter set up for temperature sensor 0
+	tempThresh,U-D--###------,--Alrm Thresh--,U/D  090 deg F
+	tempAddr,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFA4F9 
+	tempAddr,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400B4 
+	tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp  
+	handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
+	action,menu,---Action---,Update   Cancel
 TSens0.txt
 Text1,text,---Tmp Sensor 0---,Parameter set up for temperature sensor 0
-tempThresh,U-D--###------,--Alrm Thresh--,U/D  090 deg F
-tempAddr,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFA4F9 
-tempAddr,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400B4 
+tempThreshH,U-D--###------,--Alrm Thresh--,U/D  090 deg F
+tempThreshL,U-D--###------,--Alrm Thresh--,U/D  036 deg F
+tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    ######## 
+tempAddrRt,U-D----CCCCCCCC-,----Addr_Rt----,U/D    ######## 
 tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp  
 handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
 action,menu,---Action---,Update   Cancel
 
+TSens1.txt-----old-----
+	Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1
+	tempThresh,U-D--###------,--Alrm Thresh--,U/D  110 deg F
+	tempAddr,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFC38E 
+	tempAddr,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400DA 
+	tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Device Tmp  
+	handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
+	action,menu,---Action---,Update   Cancel
 
 TSens1.txt
 Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1
-tempThresh,U-D--###------,--Alrm Thresh--,U/D  110 deg F
-tempAddr,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFC38E 
-tempAddr,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400DA 
+tempThreshH,U-D--###------,--Alrm Thresh--,U/D  110 deg F
+tempThreshL,U-D--###------,--Alrm Thresh--,U/D  032 deg F
+tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    ######## 
+tempAddrRt,U-D----CCCCCCCC-,----Addr_Rt----,U/D    ######## 
 tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Device Tmp  
 handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
 action,menu,---Action---,Update   Cancel
 
 TempTst.txt
 Text1,text,--Tmp Test_0&1--,Halts measurement and tests both temp sensors (cont)
-Tex22,text,--Tmp Test_0&1--,Temp 0 & 1 values on separate lines.
+Text2,text,--Tmp Test_0&1--,Temp 0 & 1 values on separate lines.
 tempValue0,U-D--###-#----,--Temp_0 Value--,U/D  ###.# F
 tempValue1,U-D--###-#----,--Temp_1 Value--,U/D  ###.# F
 action,menu,---Action---,Begin_Test   End_Test
@@ -95,7 +116,8 @@ Text1,text,-H2O Sens Edit-,high H20 = both pumps off.
 H2OLvlNo,U-D--####------,--No H2O--,U/D  #### =none
 H2OLvlLow,U-D--####------,--Mid H2O--,U/D  #### = Mid
 H2OLvlMid,U-D--####-------,--High H2O--,U/D  #### = High
-action,menu,---Action---,Save_Levels   Cancel
+rate,U-D---------###-,--Sample Rate--,U/D   Every 300s  
+action,menu,---Action---,Update   Cancel
 
  
 
@@ -120,5 +142,8 @@ Text2,text,--Error--,To test, must first turn sensor on via Main_Menu -->Status.
 action,menu,Continue
 
 
-
+PumpErr.txt
+Text1,text,--Error--,Auto uses the water level sensor and it is turned off globally. --cont--
+Text2,text,--Error--,Turn it on before setting pumps to 'Auto'.
+action,menu,Continue
 

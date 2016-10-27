@@ -46,7 +46,7 @@ int SysTmPoleContext;	// ID of timer used to poll system time
 //---------------------------------------------------------------------------
 //flags determine which section of main loop code processes
 boolean	InMonitoringMode = true;	//if true, then system is in monitoring mode and sensors are sampled/recorded
-boolean TempSensorsOn, FlowSensorsOn, WaterLvlSensorsOn;	// sensors on/off for the purposes of monitoring.  Values read in from SysStat.txt.  User can change these with UI, but system reads state at startup
+boolean TempSensorsOn, FlowSensorsOn, WaterLvlSensorsOn, RelayBoardOn;	// sensors on/off for the purposes of monitoring.  Values read in from SysStat.txt.  User can change these with UI, but system reads state at startup
 String	PumpMode;											// relay state read in from SysStat.txt. Auto=controlled by water level sensor logic, on/off are manual 
 boolean InFlowSensTestMode = false;		// for testing and setup of flow sensors
 //boolean InFlowSens1TestMode = false;	// for testing and setup of flow sensor #1
@@ -324,7 +324,6 @@ public:
 	String ProgMemLU(const char* LUwhich, unsigned int LUwhere, unsigned int LUlen);	// uses PROGMEM library to retrieve substrings of char arrays stored in program memory for RAM conservation
 
 } Display;
-
 
 //-------------------------------------------------Display Class routines----------------------------------------------
 DisplayClass::DisplayClass(void)
@@ -2317,6 +2316,343 @@ void SensorPollRedirect(void* context)
 	}
 }
 
+//----------------------------------------Water Level Sensor variables and class-----------------------------------
+class WaterLvlSensor
+{
+	/*
+	class for moisture sensor, adapted to sense water level.  WaterLvl sensor uses the Fundouino moisture sensor and analogue input
+	A1. Polling is not handled by this class.....mostly because Arduino
+	limits this class using another class in an external library, specifically the Timer class.
+
+	*/
+protected:
+#define WaterLvlPowerPin	23		// Digital pin 23 powers the moisture sensor.  Turning on only to read will prolong sensor life due to electroplating
+#define WaterLvlInput	1			// Analog input pin 
+#define WaterLvlSampleInterval 2000	// default sampling interval in ms
+#define WaterLvlReadDelay	25		// number of ms to wait to read moisture sensor after turning on the power
+#define	WaterDfltNo	20				// Analog reading < means no water touching sensor
+#define WaterDfltLow 140			// Analog reading < this and greater than prior threshold means low level
+#define WaterDfltMid 220			// Analog reading < this and greater than prior threshold means mid level
+
+	boolean	IsOn;					// true if activly taking sensor readings else false
+	boolean	ReadDelay;				// if true, the window where power to sensor is on and waiting to read
+	int		PollInterval;			// polling interval
+	int		SensorPollContext;		// variable set by SensTmr and passed by code into SensTmr.  It is an index for the timer object
+	int		PowerDelayContext;		// context for timer that turns on power for WaterLvlReadDelay before reading.
+
+public:
+	int		WaterLvlNo, WaterLvlLow, WaterLvlMid;	//storage of water level thresholds.  Will default to defines above, but will use variables so they changed by UI
+	float	WaterLvl;					// last reading by the moisture sensor
+	String	WaterLvlRange;				// sets a range value for the water level: none, low, mid, high.  Used by pump control to turn on and off
+	String	PriorLvlRange;				// saves state of prior water level reading, needed to determine if water level is increasing or decreasing
+	boolean WaterLvlIncreasing;			// if true, then water level on its way up else down.
+	boolean	WaterLvlSensReady;			// tells main loop that there is a water level reading that is ready to be processed
+	int		tempWater;					//debug
+	void	WaterLvlSensorInit(void);	//used like constructor because constructor syntax was not working ;-(.  passes in device #
+	void	TurnOn(boolean TurnOn);		//turn on/off flags and timers used to take readings at intervals
+	void	ReadWaterLvlSensor(void);		// called at polling intervals, reads the water level sensor, and sets results and flags indicating a reading is ready for use
+	void	SetPollInterval(int Delay);	//sets the poll interval, changes the poll interval if sensor IsOn=true	//boolean Locate(void);				// locates the temp sensor at Saddr, returns true if found else false
+} WaterSens;
+
+void WaterLvlSensor::WaterLvlSensorInit(void)
+{
+	analogReference(DEFAULT);				//sets voltage reference for ADC to 5V.  Moisture sensor uses analog input
+	PollInterval = WaterLvlSampleInterval;	// set initial polling interval
+	pinMode(WaterLvlPowerPin, OUTPUT);		// using a digital output to power the moisture sensor, which used ~25ma.  Digital outputs on Mega can source 40 ma.
+	digitalWrite(WaterLvlPowerPin, LOW);	// turn off power to moisture sensor
+	ReadDelay = false;						// not in window after turning on power and before reading sensor
+											// set thresholds used to determine WaterLvlRange, which is used externally to controll stuff
+	WaterLvlNo = WaterDfltNo;
+	WaterLvlLow = WaterDfltLow;
+	WaterLvlMid = WaterDfltMid;
+}
+//----------------------------------------------------------------------
+void	WaterLvlSensor::TurnOn(boolean TurnOn)
+{
+
+	//if true, set Turn on sampling 
+	if (TurnOn)
+	{
+		//if here, then we want to turn on the polling for taking water level readings.  We use SensTmr object of the Timer class
+		//digitalWrite(WaterLvlPowerPin, HIGH);	// turn on power
+		IsOn = true;	//flag that we are taking moisture sensor readings
+
+						//set the water level range and prior level.  Needed by logic to tell if water is increasing or decreasing
+		digitalWrite(WaterLvlPowerPin, HIGH);	// turn power on
+		WaterLvl = analogRead(WaterLvlInput);	//read water level analog input
+		digitalWrite(WaterLvlPowerPin, LOW);	// turn power off
+												// set level flags based on reading.
+		if (WaterLvl < WaterLvlNo) WaterLvlRange = "none"; else
+			if (WaterLvl < WaterLvlLow) WaterLvlRange = "low"; else
+				if (WaterLvl < WaterLvlMid) WaterLvlRange = "mid"; else
+					WaterLvlRange = "high";
+		PriorLvlRange = WaterLvlRange;		// current and prior water level ranges set
+		WaterLvlIncreasing = true;			// start with assumption that system is not hemoraging water so that when pumps go on, level will be increasing
+
+		SensorPollContext = SensTmr.every(PollInterval, WaterLvlPollRedirect, (void*)4);	// begin polling temp readings, call SensorPollRedirect at intervals of PollInterval. timer index = SensorPollContext
+	}
+	else
+	{
+		// turn off polling for temperature sensor readings
+		//digitalWrite(WaterLvlPowerPin, LOW);	// turn off power
+		IsOn = false;	//flag that we are not taking water level readings
+		SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context
+	}
+	ReadDelay = false;	//flag related to power up delay when reading moisture sensor.
+};
+//----------------------------------------------------------------------
+void	WaterLvlSensor::ReadWaterLvlSensor(void)
+{
+	// called at polling intervals (WaterLvlPollRedirect is called at intervals set up by TurnOn and calls the routing. See SensorPollRedirect for expalination of need for indirection
+	// based on the value of ReadDelay, This routine either turns on the power to the moisture sensor, sets the delay before reading.
+	// or reads the water level sensor, sets results and flags indicating a reading is ready for use, and resets polling interval
+
+	if (!(ReadDelay))
+	{
+		//time to read the moisture level.  However, the power needs to be turned on and we need to wait for the sensor to settle.  The delay is set here
+		ReadDelay = true;	// flag we are entering the power up delay
+		digitalWrite(WaterLvlPowerPin, HIGH);	// turn on power
+		PowerDelayContext = SensTmr.after(WaterLvlReadDelay, WaterLvlPollRedirect, (void*)5);	//	return to WaterLvlPollRedirect after power up delay
+	}
+	else
+	{
+		//power up delay is done, 
+		ReadDelay = false;	// flag that power up delay is over
+		PriorLvlRange = WaterLvlRange;	//save prior water level.  Needed to determine if level increasing or decreasing
+		WaterLvl = analogRead(WaterLvlInput);	//read water level analog input
+		digitalWrite(WaterLvlPowerPin, LOW);	// turn power off
+
+												// set level flags based on reading.
+		if (WaterLvl < WaterLvlNo) WaterLvlRange = "none"; else
+			if (WaterLvl < WaterLvlLow) WaterLvlRange = "low"; else
+				if (WaterLvl < WaterLvlMid) WaterLvlRange = "mid"; else
+					WaterLvlRange = "high";
+
+		// determine if water level is increasing or decreasing and set WaterLvlIncreasing accordingly
+		//if ((PriorLvlRange == "none") && (WaterLvlRange == "none") && WaterLvlIncreasing) WaterLvlIncreasing = true;
+
+		WaterLvlSensReady = true;	//used by main loop to know when to read water level
+	}
+}
+//----------------------------------------------------------------------
+void	WaterLvlSensor::SetPollInterval(int Delay)
+{
+	//saves the poll interval, changes the poll interval if sensor IsOn=true
+	PollInterval = Delay;
+	if (IsOn)
+	{
+		SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context	
+		SensorPollContext = SensTmr.every(PollInterval, WaterLvlPollRedirect, (void*)4);	// begin polling temp readings at new polling interval
+	}
+}
+//----------------------------------------------------------------------
+void WaterLvlPollRedirect(void* context)
+{
+	// this routine exists outside of the Sensor class because we can't use some timer.every method within a class in the .pde implementation.  Compiler cannot resolve which routine to call.
+	WaterSens.ReadWaterLvlSensor();	//read the water level sensor
+}
+//--------------------------------------------Relay Board variables and class -------------------------------------
+class RelayBoard
+{
+	/*
+	class for Relay module board. Board is made by ### jf here ### and has 4 relays, each activated by a digital pin going low.
+
+	*/
+protected:
+	boolean	Relay1wiredNO;		//if true then wired as NO (normally open) and circuit is off when relay is off, else wired as NC (normally closed=circuit on when relay is off)
+	boolean	Relay2wiredNO;
+	boolean	Relay3wiredNO;
+	boolean	Relay4wiredNO;
+	boolean Relay1State;		//logical on/of state of circuit attached to relay
+	boolean Relay2State;
+	boolean Relay3State;
+	boolean Relay4State;
+	boolean IsOn;			// flag for enabled/disabled board. 
+public:
+#define Relay1	24		// Digital pin to control this relay
+#define Relay2	25		
+#define Relay3	26		
+#define Relay4	27	
+
+
+
+	void	InitRelayBoard(boolean NO1, boolean NO2, boolean NO3, boolean NO4);	// initializes Relay board and sets wiring variables identifying if relay is wired NO or NC		
+	void	RelaySet(byte RelayNum, boolean CircuitOn);	// controls the logical state of RelayNum.  If CircuitOn=true then Relay is set such the the circuit is on, takning wiring (NO vs NC) into consideration.
+	void	RelayToggle(byte RelayNum);		//toggles the state of the relay.  If off, turns on.
+	boolean	GetRelayState(byte RelayNum);	// returns logical state of RelayNum
+											//void	TurnOn(boolean TurnOn);			// enables / disables the use of the relay board.  When turned on, set all relays to off state
+											//void	DefineRelayWiring (boolean 1NO, boolean 2NO, boolean 3NO, boolean 4NO);	//defines the wiring state for the relays.  NO=normally open= when off, circut is open, else when off, circut closed
+} Relay;
+
+void RelayBoard::InitRelayBoard(boolean NO1, boolean NO2, boolean NO3, boolean NO4)
+{
+	//set state of the relay wiring, used to logically turn on/off
+	Relay1wiredNO = NO1;		//if true then wired as NO (normally open) and circuit is off when relay is off, else wired as NC (normally closed=circuit on when relay is off)
+	Relay2wiredNO = NO2;
+	Relay3wiredNO = NO3;
+	Relay4wiredNO = NO4;
+
+	// set the logical state of the relays that represent circuit connected to relay is open (off).
+	Relay1State = !NO1;
+	Relay2State = !NO2;
+	Relay3State = !NO3;
+	Relay4State = !NO4;
+
+	//initializes and turns off relays.  Relays are activated when digital line is brought low..
+	pinMode(Relay1, OUTPUT);
+	digitalWrite(Relay1, true);	// turn off Relay 1
+	pinMode(Relay2, OUTPUT);
+	digitalWrite(Relay2, true);	// turn off Relay 2
+	pinMode(Relay3, OUTPUT);
+	digitalWrite(Relay3, true);	// turn off Relay 3
+	pinMode(Relay4, OUTPUT);
+	digitalWrite(Relay4, true);	// turn off Relay 4
+
+
+								//Serial.println(F("Relay initialized."));
+}
+//----------------------------------------------------------------------
+void	RelayBoard::RelaySet(byte RelayNum, boolean CircuitOn)
+{
+	// Sets the state of circuit attached RelayNum to RelayState, taking wiring of relay into account.
+	byte	PinNum;	// local to hold number of digital pin
+	boolean	isNO;	// local to hold wiring of relay (Normally Open vs NC)
+	switch (RelayNum)
+	{
+	case 1: Relay1State = CircuitOn;
+		PinNum = Relay1;
+		isNO = Relay1wiredNO;
+		break;
+	case 2: Relay2State = CircuitOn;
+		PinNum = Relay2;
+		isNO = Relay2wiredNO;
+		break;
+	case 3: Relay3State = CircuitOn;
+		PinNum = Relay3;
+		isNO = Relay3wiredNO;
+		break;
+	case 4: Relay4State = CircuitOn;
+		PinNum = Relay4;
+		isNO = Relay4wiredNO;
+		break;
+	default:
+		break;
+	}
+
+	if (isNO) digitalWrite(PinNum, !CircuitOn); else digitalWrite(PinNum, CircuitOn);
+}
+//----------------------------------------------------------------------
+void	RelayBoard::RelayToggle(byte RelayNum)
+{
+	// toggle the state of the circuit attached to relay.  Take wiring into account (relay is wired Normally Open vs NC)
+	byte	PinNum;	// local to hold number of digital pin
+	boolean	isNO;	// local to hold wiring of relay (Normally Open vs NC)
+	boolean RelayState;	// local variable to hold state to write to relay
+	switch (RelayNum)
+	{
+	case 1:
+		RelayState = Relay1State = !(Relay1State); //toggle variable holding the logical state of the circuit attached to relay and save locally to use to write to the port
+		PinNum = Relay1;
+		isNO = Relay1wiredNO;
+		break;
+	case 2:
+		RelayState = Relay2State = !(Relay2State);
+		PinNum = Relay2;
+		isNO = Relay2wiredNO;
+		break;
+	case 3:
+		RelayState = Relay3State = !(Relay3State);
+		PinNum = Relay3;
+		isNO = Relay3wiredNO;
+		break;
+	case 4:
+		RelayState = Relay4State = !(Relay4State);
+		PinNum = Relay4;
+		isNO = Relay4wiredNO;
+		break;
+	default:
+		break;
+	}
+	if (isNO) digitalWrite(PinNum, !RelayState); else digitalWrite(PinNum, RelayState);	// change relay state.
+}
+//----------------------------------------------------------------------
+boolean	RelayBoard::GetRelayState(byte RelayNum)
+{
+	// get the logical state of the circuit attached to the relay 
+
+	switch (RelayNum)
+	{
+	case 1:
+		return Relay1State;
+		break;
+	case 2:
+		return Relay2State;
+		break;
+	case 3:
+		return Relay3State;
+		break;
+	case 4:
+		return Relay4State;
+		break;
+	default:
+		return 0;	// error.
+					//errorlog entry goes here   JF
+		break;
+	}
+}
+//----------------------------------------------Pump variables and class ------------------------------------------
+class H2Opumps
+{
+	/*
+	there are 2 water pumps, lower and upper.  They have a PumpMode that is in the SysStat display array: On, Off, and Auto.
+	This class works with the Relay class as the pumps are controlled by the relay board.  The relay board has 4 relays, and the pumps use only two
+	*/
+public:
+#define uPump	1	//relay number for the upper pump
+#define lPump	2	// relay number for the lower pump
+#define pumpOn	true
+#define pumpOff	false
+	boolean uPumpIsOn;
+	boolean lPumpInOn;
+	void pumpInit(void);	// initialize pump logical states to off
+	void SetPump(byte PumpNum, boolean TurnOn);		// checks the current state of PumpNum and changes it to match TurnOn as needed
+} pump;
+
+void H2Opumps::pumpInit(void)
+{
+	//initializes pump state variables to false
+	uPumpIsOn = lPumpInOn = false;
+}
+//----------------------------------------------------------------------
+void H2Opumps::SetPump(byte PumpNum, boolean TurnOn)
+{
+	if (PumpNum == uPump)
+	{
+		if (uPumpIsOn != TurnOn)
+		{
+			Relay.RelaySet(PumpNum, TurnOn);
+			uPumpIsOn = !uPumpIsOn;	//toggle state as is changing
+		}
+	}
+	else
+		if (PumpNum == lPump)
+		{
+			if (lPumpInOn != TurnOn)
+			{
+				Relay.RelaySet(PumpNum, TurnOn);
+				lPumpInOn = !lPumpInOn;	//toggle state as is changing
+			}
+		}
+			else
+			{
+				// error, unexpected pump number
+				dprint(F("Error, unexpected pump number in H2Opumps::SetPump.  Pump requested was=")); dprintln(PumpNum);
+				ErrorLog("Error, unexpected pump number in H2Opumps::SetPump", 2);
+			}
+}
+
+//-----------------------------------------LED indicator variables and class ---------------------------------------
+
 //--------------------------------------------------------Set Up --------------------------------------------------
 
 void setup()
@@ -2330,6 +2666,7 @@ void setup()
 	String Str;
 	int tempInt, tempInt1;
 	float tmpFloat;
+	boolean tmpBool;
 
 	// display splash screen before getting under way
 	lcd.begin(16, 2);	//unclear why, but this is needed every time else setCursor(0,1) doesn't work....probably scope related.
@@ -2386,23 +2723,28 @@ void setup()
 	/*
 	get the monitoring state of sensors from SysStat.txt and set flags accordingly
 		SysStat.txt
-		text1,text,-System status-,Status of sensors and relays
-		Temp,U-D----------CCC,U/D  Temp is On
-		Flow,U-D----------CCC,U/D  Flow is On
-		Wlvl,U-D----------CCC,U/D  WLvl is On
-		Relay,U-D---------CCCC,U/D  Pumps@ Auto
-		action,menu,---Action---,Return
+		text1,text,-Config System-,Start up status of sensors. Can be changed through main menu. (cont)
+		text2,text,-Config System-,Used to enable / disable sensor functions. (cont)
+		text3,text,-Config System-,note: WLvl=water level sensor, RelB= relay board.
+		Temp,U-D----------CCC,--Temp: On/Off--,U/D  Temp is On
+		Flow,U-D----------CCC,--Flow: On/Off--,U/D  Flow is On
+		Wlvl,U-D----------CCC,--WLvl: On/Off--,U/D  WLvl is On
+		Relay,U-D----------CCC,--RelB: On/Off--,U/D  RelB is On
+		Pumps,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto
+		action,menu,---Action---,Update  Cancel
 	*/
-	Display.DisplaySetup(mReadOnly, mUseSD, "SysStat", 6, DisplayBuf); // get settings from SysStat.txt  Will use the Display class to retrieve the values.  User can modify these via UI
+	Display.DisplaySetup(mReadOnly, mUseSD, "SysStat", 9, DisplayBuf); // get settings from SysStat.txt  Will use the Display class to retrieve the values.  User can modify these via UI
 	Display.DisplayGetSetChrs(&tempString, "Temp", mget);	//get the string from the SysStat file for the line pertaining to the temp sensors
 	if (tempString == "On") TempSensorsOn = true; else TempSensorsOn = false;	
 	Display.DisplayGetSetChrs(&tempString, "Flow", mget);	//get 
 	if (tempString == "On") FlowSensorsOn = true; else FlowSensorsOn = false;
 	Display.DisplayGetSetChrs(&tempString, "Wlvl", mget);
 	if (tempString = "On") WaterLvlSensorsOn = true; else WaterLvlSensorsOn = false;
-	Display.DisplayGetSetChrs(&PumpMode, "Relay", mget);
+	Display.DisplayGetSetChrs(&tempString, "Relay", mget);
+	if (tempString = "On") RelayBoardOn = true; else RelayBoardOn = false;
+	Display.DisplayGetSetChrs(&PumpMode, "Pumps", mget);	//PumpMode = On, Off, or Auto
 
-	// look up the polling intervals for the sensors that are on
+	// look up variables for the sensors that are on
 	if (TempSensorsOn)
 	{
 
@@ -2455,13 +2797,13 @@ void setup()
 
 		/*	TSens0 has the following 8 lines
 		Text1, text, -- - Tmp Sensor 0-- - , Parameter set up for temperature sensor 0
-		IsOn, U - D-------- - C - , -On / Off status - , U / D Is on ? Y  jf here, remove this line.  the master on/off for both temp sensors is in sysStat.txt
 		tempThreshH, U - D--###------, --H Temp Thresh-, U / D  090 deg F
 		tempThreshL, U - D--###------, --L Temp Thresh-, U / D  036 deg F
 		tempAddrLt, U - D----CCCCCCCC - , ----Addr_Lt----, U / D    28FFA4F9
 		tempAddrRt, U - D----CCCCCCCC - , ----Addr_Rt----, U / D    541400B4
 		tempName, U - D--CCCCCCCCCC, ----Name Str----, U / D  Pond Temp
-		handle, U - D--CCCCCCCCCC, -- - Cloud Str-- - , U / D ? ? ? ? ? ? ? ? ? ? ?
+		handle, U - D--CCCCCCCCCC, -- - Cloud Str-- - , U / D ???????????
+		action,menu,---Action---,Update   Cancel
 		*/
 		//if here, temp sensors are on based on global variable.  However, we have 2 temp sensors, and it is possible to have one ontemperature sensors initialized to 'off' in TempSens.TempSensorInit.   initial on/off status is set above in initialization.  Therefore, the IsOn value must be written into "TSens0"
 		//if (TempSens0.IsOn) tempString = "Y"; else tempString = "N";
@@ -2505,10 +2847,10 @@ void setup()
 		//if (TempSens1.IsOn) tempString = "Y"; else tempString = "N";
 		//Display.DisplayGetSetChrs(&tempString, "IsOn", true); // write the status of TempSensorsOn into the line on Display named "IsOn"
 
-															  // read temperature alarm thresholds from that is saved in TSens1.txt into appropriate Tsens class variable.
-		Display.DisplayGetSetNum(&tempString, "tempThreshH", false);	//get the value as string
+		// read temperature alarm thresholds from that is saved in TSens1.txt into appropriate Tsens class variable.
+		Display.DisplayGetSetNum(&tempString, "tempThreshH", mget);	//get the value as string
 		TempSens1.AlarmThreshHigh = tempString.toFloat();
-		Display.DisplayGetSetNum(&tempString, "tempThreshL", false);	//get the value as string
+		Display.DisplayGetSetNum(&tempString, "tempThreshL", mget);	//get the value as string
 		TempSens1.AlarmThreshLow = tempString.toFloat();
 
 		/* populate the sensor address in the display line.  This comes from the sensor during initialization and therefore must be written into the Display (TSens1.txt),
@@ -2520,7 +2862,7 @@ void setup()
 			if (TempSens1.Saddr[i] < 16) tempString += '0';
 			tempString += (TempSens1.Saddr[i], HEX);
 		}
-		Display.DisplayGetSetChrs(&tempString, "tempAddrLt", true);	// add lt part of address into display line
+		Display.DisplayGetSetChrs(&tempString, "tempAddrLt", mset);	// add lt part of address into display line
 																	// Read the rt  4 Hex digits into a temp string
 		tempString = "";	// blank out string
 		for (uint8_t i = 4; i < 8; i++)
@@ -2528,7 +2870,7 @@ void setup()
 			if (TempSens1.Saddr[i] < 16) tempString += '0';
 			tempString += (TempSens1.Saddr[i], HEX);
 		}
-		Display.DisplayGetSetChrs(&tempString, "tempAddrRt", true);	// add rt part of address into display line
+		Display.DisplayGetSetChrs(&tempString, "tempAddrRt", mset);	// add rt part of address into display line
 
 		Display.DisplayGetSetChrs(&TempSens1.SensName, "tempName", false); //read the sensor name from the display into the class
 		Display.DisplayGetSetChrs(&TempSens1.SensHandle, "handle", false); //read the sensor handle from the display into the class
@@ -2536,7 +2878,7 @@ void setup()
 		Display.DisplayWriteSD();	// write the display containing TSens1 back to SD card.
 	}
 
-		//-------------------------------------
+	//--------------------------------------------------------------
 	if (FlowSensorsOn)
 	{
 		/*
@@ -2566,16 +2908,109 @@ void setup()
 		FlowSens.FlowStartStop(true);	// if global setting for turning on flow sensors is on, then enable soft interupts to measure flow.  Note, global settings loaded via SysStat.txt 	
 	}
 	//--------------------------------------------------------------
-	
+
+	if (WaterLvlSensorsOn)
+	{
+		/*
+		water level sensors are enabled so need to initialize and read variables in from SD card.
+
+			H2OEdit.txt has state of variables 
+			{snip}
+			H2OLvlNo,U-D--####------,--No H2O--,U/D  #### =none
+			H2OLvlLow,U-D--####------,--Mid H2O--,U/D  #### = Mid
+			H2OLvlMid,U-D--####-------,--High H2O--,U/D  #### = High
+			rate,U-D---------###-,--Sample Rate--,U/D   Every 300s
+			action,menu,---Action---,Update   Cancel
+		*/
+
+		WaterSens.WaterLvlSensorInit();		//sets the pins up 
+		Display.DisplaySetup(mReadOnly, mUseSD, "H2OEdit", 9, DisplayBuf);	//get variables from SD into display array
+
+		Display.DisplayGetSetNum(&tempString, "H2OLvlNo", mget);
+		WaterSens.WaterLvlNo = tempString.toInt();
+
+		Display.DisplayGetSetNum(&tempString, "H2OLvlLow", mget);
+		WaterSens.WaterLvlLow = tempString.toInt();
+
+		Display.DisplayGetSetNum(&tempString, "H2OLvlMid", mget);
+		WaterSens.WaterLvlMid = tempString.toInt();
+
+		Display.DisplayGetSetNum(&tempString, "rate", mget);
+		WaterSens.WaterLvlMid = tempString.toInt();
+		WaterSens.SetPollInterval(tempString.toInt() * 1000);	// convert sampling rate from sec to ms
+
+		// water level sensor is in use so let's test it....show user that it is working
+
+		lcd.begin(16, 2);
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("H2O Sens chk");
+		lcd.setCursor(0, 1);
+		lcd.print("Should flash twice");
+
+		for (tempInt = 2; tempInt < 6; tempInt++)
+		{
+			tmpBool = tempInt % 2;						// value will be either 0 or 1
+			digitalWrite(WaterLvlPowerPin, tmpBool);	// toggle power LED
+			delay(SetUpDelay);
+		}
+		digitalWrite(WaterLvlPowerPin, LOW);			// make sure power is off
+	}
+	//--------------------------------------------------------------
+
+	if (RelayBoardOn)
+	{
+		// relay board is in use so let's test it....show user that it is working
+		lcd.begin(16, 2);
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("Relay board chk");
+		lcd.setCursor(0, 1);
+		lcd.print("all should flash twice");
+
+		for (tempInt = 1; tempInt < 5; tempInt++)
+		{
+			tmpBool = tempInt % 2;						// value will be either 0 or 1
+			Relay.InitRelayBoard(tmpBool, tmpBool, tmpBool, tmpBool);	//initialize all as normally open, so should all turn on
+			delay(SetUpDelay);
+		}
+			Relay.InitRelayBoard(false, false, false, false);	//initialize all as normally closed.
+
+			pump.pumpInit();	//set state variables for pump on/off
+			if(PumpMode != "Auto")
+		{
+			// if here, then need to set the pumps according to the value in PumpMode.  
+			//Auto is handled by the water level sensors.
+			lcd.begin(16, 2);
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			if(PumpMode=="On")
+			{
+				pump.SetPump(uPump, pumpOn);	//trun on pump.  uses relay board.
+				pump.SetPump(lPump, pumpOn);
+				lcd.print("Pumps turned on");	// tell user
+			}
+			else
+			{
+				pump.SetPump(uPump, pumpOff);	//trun off pump.  uses relay board.
+				pump.SetPump(lPump, pumpOff);
+				lcd.print("Pumps turned off");	// tell user
+			}
+
+			lcd.setCursor(0, 1);
+			lcd.print("based on 'SetUp'");
+			delay(SetUpDelay);
+		}
+
+	}
+	//--------------------------------------------------------------
+// all sensors are set up and we are ready to start polling for keyboard use and sensor readings
 	KeyPoll(true);		// Begin polling the keypad S
 	SysTimePoll(true);	// begin to poll the Real Time Clock to get system time into SysTm
 
 	Display.DisplayStartStop(true);		// indicate that menu processing will occur. Tells main loop to pass key presses to the Menu
 	Display.DisplaySetup(true, true, "Main_UI", 1, DisplayBuf); // Prepare main-UI display array and display the first line, mode is read only.
 
-	//ErrorLog("testing errorlog,this is line 1 with error level 1", 1);	//debug
-	//ErrorLog("testing errorlog,this is line 2 with error level 2", 2);	//debug
-	//ErrorLog("testing errorlog,this is line 3 with error level 3", 3);	//debug
 }
 
 
@@ -2611,7 +3046,7 @@ void loop()
 				if (Display.DisplaySelection == "Status")
 				{
 					Serial.println(F("Main_UI-->Setup-->Status"));
-					ErrorLog("testing error log with Status", 1);
+					Display.DisplaySetup(mReadWrite,mUseSD,"SysStat",9,DisplayBuf);	// put up the display array with the global variables
 				}
 				else
 		
@@ -2650,7 +3085,7 @@ void loop()
 					if (WaterLvlSensorsOn)
 					{
 						dprintln(F("Main_UI-->Setup-->H20_Lvl_sensor"));
-						//jf here, add display array for flow sensors
+						Display.DisplaySetup(mReadWrite, mUseSD, "H20Lvl", 4, DisplayBuf);	//put up display array for water level sensor
 					}
 					else
 					{
@@ -2704,25 +3139,40 @@ void loop()
 
 			if (Display.DisplayLineName == "action")
 			{
-				if (Display.DisplaySelection == "Auto?") 
+				if (Display.DisplaySelection == "Auto") 
 				{
 					dprintln(F("Pumps-->Pumps-->Auto"));	//debug
+					if (WaterLvlSensorsOn)
+					{
+						PumpMode = "Auto";	//set the pump mode to Auto.  Water level sensor logic will take care of turning pumps on and off
+						Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf);	// return to main menu
+					}
+					else
+					{
+						//error, user is trying to set pumps to 'Auto' but water level sensor is not on
+						Display.DisplaySetup(mReadWrite, mUseSD, "PumpErr", 3, DisplayBuf);	// put up error message
+					}
 				}
 				else
 				if(Display.DisplaySelection == "Off")
 				{
 					dprintln(F("Pumps-->Pumps-->Off"));	//debug
+					pump.SetPump(uPump, pumpOff);
+					pump.SetPump(lPump, pumpOff);
+					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
 				}
 				else
 				if (Display.DisplaySelection == "On")
 				{
 					dprintln(F("Pumps-->Pumps-->On"));	//debug
+					pump.SetPump(uPump, pumpOn);
+					pump.SetPump(lPump, pumpOn);
+					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
 				}
 				else
 				if(Display.DisplaySelection=="Cancel")
 				{
 					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
-					goto EndDisplayProcessing; //exit processing Display	
 				}
 				else
 				{
@@ -2733,7 +3183,6 @@ void loop()
 			goto EndDisplayProcessing; //exit processing pumps
 		}
 
-	
 		if (Display.DisplayName == "SetRTC_ui")
 		{
 
@@ -2838,7 +3287,7 @@ void loop()
 			/*  
 			Tempsens.txt
 			Text1,text,---Tmp Sensor---,Functions related to temperature sensors
-			action1,menu,---Edit/Test---,Sample_Rate  Edit_0   Edit_1   Test_0   Test_1  Cancel
+			action1,menu,---Edit/Test---,Sample_Rate  Edit_0   Edit_1   Test_0&1  Cancel
 			*/
 
 			if (Display.DisplayLineName == "action1")
@@ -2904,12 +3353,13 @@ void loop()
 					TempSens0.SetPollInterval(tempInt);					// set the polling interval for both temp sensors.
 					TempSens1.SetPollInterval(tempInt);
 					Display.DisplayWriteSD();							// save the display array on SD
+					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 				}
 				else
 					if (Display.DisplaySelection == "Cancel")
 					{
 						dprintln(F("TempRate-->Action-->Cancel"));	//debug					
-						Display.DisplaySetup(false, true, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
+						Display.DisplaySetup(mReadWrite,mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 					}
 					else
 					{
@@ -2920,84 +3370,190 @@ void loop()
 			goto EndDisplayProcessing; //exit processing Display
 		}
 
-		if (Display.DisplayName == "TSens1")
+		if (Display.DisplayName == "TSens0")
 		{
-			/*if here then processing setup display array for temperature senser 1
-			Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1
-			IsOn,U-D---------C-,-On/Off status-,U/D Is on?  Y
-			tempAddr,U-D----CCCCCCCC-,----Address----,U/D    00000000
-			tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp
-			handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
-			action,menu,---Action---,Next  Update-#1-Next   Cancel
+			/*if here then processing TSens0
+			Text1, text, -- - Tmp Sensor 0-- - , Parameter set up for temperature sensor 0
+			tempThreshH, U - D--###------, --H Temp Thresh-, U / D  090 deg F
+			tempThreshL, U - D--###------, --L Temp Thresh-, U / D  036 deg F
+			tempAddrLt, U - D----CCCCCCCC - , ----Addr_Lt----, U / D    28FFA4F9
+			tempAddrRt, U - D----CCCCCCCC - , ----Addr_Rt----, U / D    541400B4
+			tempName, U - D--CCCCCCCCCC, ----Name Str----, U / D  Pond Temp
+			handle, U - D--CCCCCCCCCC, -- - Cloud Str-- - , U / D ???????????
+			action,menu,---Action---,Update   Cancel
 			*/
 			if (Display.DisplayLineName == "action")
 			{
-				if (Display.DisplaySelection == "Next")
+
+				if (Display.DisplaySelection == "Update")
 				{
-					Serial.println(F("TSens1-->Action-->Next"));	//debug
-					Display.DisplaySetup(false, true, "TSens2", 6, DisplayBuf);		//don't save anything and put up TSens2 dispaly array																			
+					dprintln(F("TSens0-->action-->Update"));	//debug 
+					/*
+					User asking to update parameters, will assume that they changed some/all.  However, even though they can change the address in Temp0 display array,
+					they cannot change the actual address of the device, because that comes from the device.  Soooooo, we assume they changed it but
+					change it back :-)
+					What we need to do is read parameters that the user can change from Temp0 display array into the object, read the device address from the object
+					into Temp0 display array, and write Temp0 display array back to SD as storage.
+					*/
+					// read temperature alarm thresholds 
+					Display.DisplayGetSetNum(&tempString, "tempThreshH", mget);	//get the value as string
+					TempSens0.AlarmThreshHigh = tempString.toFloat();
+					Display.DisplayGetSetNum(&tempString, "tempThreshL", mget);	//get the value as string
+					TempSens0.AlarmThreshLow = tempString.toFloat();
+
+					/*populate the sensor address in the display line.  This comes from the sensor during initialization and the user is not allowed to change it.
+					The Address is too long to fit on the LCD so it is broken up into 2 segments.
+					Read the lt 4 Hex digits into a temp string */
+					tempString = "";	// blank out string
+					for (uint8_t i = 0; i < 4; i++)
+					{
+						if (TempSens0.Saddr[i] < 16) tempString += '0';
+						tempString += (TempSens0.Saddr[i], HEX);
+					}
+					Display.DisplayGetSetChrs(&tempString, "tempAddrLt", mset);	// add lt part of address into display line
+	
+					// Read the rt  4 Hex digits into a temp string
+					tempString = "";	// blank out string
+					for (uint8_t i = 4; i < 8; i++)
+					{
+						if (TempSens0.Saddr[i] < 16) tempString += '0';
+						tempString += (TempSens0.Saddr[i], HEX);
+					}
+					Display.DisplayGetSetChrs(&tempString, "tempAddrRt", mset);	// add rt part of address into display line
+
+					Display.DisplayGetSetChrs(&TempSens0.SensName, "tempName", mget); //read the sensor name from the display into the class
+					Display.DisplayGetSetChrs(&TempSens0.SensHandle, "handle", mget); //read the sensor handle from the display into the class
+
+					Display.DisplayWriteSD();	// write the display containing TSens0 back to SD card.
+					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 				}
 				else
-				if (Display.DisplaySelection == "Update-#1-Next")
+				if(Display.DisplaySelection=="Cancel")
 				{
-					// read variables from display array TSens1 into temp sensor variables
-					if (!(Display.DisplayWriteSD())) ErrorLog("error writing TSens1 to SD",1);	//save settings on SD
-					Display.DisplaySetup(false, true, "TSens2", 6, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
-					Serial.println(F("TSens1-->Action-->Update-#1-Next"));	//debug
-				}
-				else
-				if (Display.DisplaySelection == "Cancel")
-				{
-					Display.DisplaySetup(true, true, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
-					goto EndDisplayProcessing; //exit processing Display	
+					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 				}
 				else
 				{
-					ErrorLog("error processing TSens1-->action: unrecognized DisplaySelection",2);
-					Serial.print(F("error processing TSens1-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
+					ErrorLog("error processing TSens0-->action: unrecognized DisplaySelection",2);
+					dprint(F("error processing TSens0-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+	
 				}
 			}
 			goto EndDisplayProcessing; //exit processing Display
-		}
+		}	// end processing DisplayName== "TSens0"
+
+		if (Display.DisplayName == "TSens1")
+		{
+			/*
+			TSens1.txt
+			Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1
+			tempThreshH,U-D--###------,--Alrm Thresh--,U/D  110 deg F
+			tempThreshL,U-D--###------,--Alrm Thresh--,U/D  032 deg F
+			tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    ######## 
+			tempAddrRt,U-D----CCCCCCCC-,----Addr_Rt----,U/D    ######## 
+			tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Device Tmp  
+			handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
+			action,menu,---Action---,Update   Cancel
+			*/
+			if (Display.DisplayLineName == "action")
+			{
+
+				if (Display.DisplaySelection == "Update")
+				{
+					dprintln(F("TSens1-->action-->Update"));	//debug 
+					/*
+					User asking to update parameters, will assume that they changed some/all.  However, even though they can change the address in Temp0 display array,
+					they cannot change the actual address of the device, because that comes from the device.  Soooooo, we assume they changed it but
+					change it back :-)
+					What we need to do is read parameters that the user can change from Temp0 display array into the object, read the device address from the object
+					into Temp0 display array, and write Temp0 display array back to SD as storage.
+					*/
+					// read temperature alarm thresholds 
+					Display.DisplayGetSetNum(&tempString, "tempThreshH", mget);	//get the value as string
+					TempSens1.AlarmThreshHigh = tempString.toFloat();
+					Display.DisplayGetSetNum(&tempString, "tempThreshL", mget);	//get the value as string
+					TempSens1.AlarmThreshLow = tempString.toFloat();
+
+					/*populate the sensor address in the display line.  This comes from the sensor during initialization and the user is not allowed to change it.
+					The Address is too long to fit on the LCD so it is broken up into 2 segments.
+					Read the lt 4 Hex digits into a temp string */
+					tempString = "";	// blank out string
+					for (uint8_t i = 0; i < 4; i++)
+					{
+						if (TempSens1.Saddr[i] < 16) tempString += '0';
+						tempString += (TempSens1.Saddr[i], HEX);
+					}
+					Display.DisplayGetSetChrs(&tempString, "tempAddrLt", mset);	// add lt part of address into display line
+
+																				// Read the rt  4 Hex digits into a temp string
+					tempString = "";	// blank out string
+					for (uint8_t i = 4; i < 8; i++)
+					{
+						if (TempSens1.Saddr[i] < 16) tempString += '0';
+						tempString += (TempSens1.Saddr[i], HEX);
+					}
+					Display.DisplayGetSetChrs(&tempString, "tempAddrRt", mset);	// add rt part of address into display line
+
+					Display.DisplayGetSetChrs(&TempSens1.SensName, "tempName", mget); //read the sensor name from the display into the class
+					Display.DisplayGetSetChrs(&TempSens1.SensHandle, "handle", mget); //read the sensor handle from the display into the class
+
+					Display.DisplayWriteSD();	// write the display containing TSens0 back to SD card.
+					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
+				}
+				else
+					if (Display.DisplaySelection == "Cancel")
+					{
+						Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
+					}
+					else
+					{
+						ErrorLog("error processing TSens1-->action: unrecognized DisplaySelection", 2);
+						dprint(F("error processing TSens1-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+
+					}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}	// end processing for DisplayName=="TSens1"
 
 		if (Display.DisplayName == "TempTst")
 		{
-			/*if here then processing TempTst0
-
-			Text1,text,---Tmp Test 0---,Halts measurement and tests temperature sensor 0
-			tempValue,U-D--###-#----,--Temp Value--,U/D  ###.# F
-			action,menu,---Action---,Begin_Test   End_Test
+			/*
+			TempTst.txt
+			Text1, text, --Tmp Test_0 & 1--, Halts measurement and tests both temp sensors(cont)
+			Text2, text, --Tmp Test_0 & 1--, Temp 0 & 1 values on separate lines.
+			tempValue0, U - D--### - #----, --Temp_0 Value--, U / D  ###.# F
+			tempValue1, U - D--### - #----, --Temp_1 Value--, U / D  ###.# F
+			action, menu, -- - Action-- - , Begin_Test   End_Test
 			*/
 			if (Display.DisplayLineName == "action")
 			{
 				if (Display.DisplaySelection == "Begin_Test")
 				{
-					Serial.println(F("TempTst-->action-->Begin_Test"));	//debug
+					dprintln(F("TempTst-->action-->Begin_Test"));	//debug
 					InMonitoringMode = false;	// flag to end monitoring mode....stop reading and logging sensor readings
 					InTempSensTestMode = true;	// flag to start temp sens testing
-					TempSens0.TestMode(true);	// save prior state of IsOn, turn on if needed and change the polling interval for testing
+					TempSens0.TestMode(true);	// sets the soft interupts and state variables for both TempSens0 AND TempSens1 for testing
 
 					//Note, soft interupt for temp sensor will check if monitoring vs testing and act accordingly.
 				}
 				else
 				if (Display.DisplaySelection == "End_Test")
 				{
-					Serial.println(F("TempTst-->action-->End_Test"));	//debug
+					dprintln(F("TempTst-->action-->End_Test"));	//debug
 					InMonitoringMode = true;		// flag to resume monitoring mode....resume reading and logging sensor readings
 					InTempSensTestMode = false;	// flag to end temp sens 0 testing
-					TempSens0.TestMode(false);		// restore prior state of IsOn, turn off if needed and change the polling interval for monitoring
-					Display.DisplaySetup(false, true, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
+					TempSens0.TestMode(false);		// sets the soft interupts and state variables for both TempSens0 AND TempSens1 for monitoring
+					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 				}
 				else						
 				{
 					ErrorLog("error processing TempTst-->action: unrecognized DisplaySelection",2);
-					Serial.print(F("error processing TempTst-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);
+					dprint(F("error processing TempTst-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 
 				}
 			}
 			goto EndDisplayProcessing; //exit processing Display
 		}	// end processing DisplayName== "TempTst"
-
 
 		if (Display.DisplayName == "FlowSens")	
 		{
@@ -3065,12 +3621,12 @@ void loop()
 					Display.DisplayGetSetNum(&tempString, "rate", mget);		//get the sampling rate in sec
 					FlowSens.SetReadFlowInterval(tempString.toInt() * 1000);	//save the sampling rate in ms
 
-					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
+					Display.DisplaySetup(mReadWrite, mUseSD, "FlowSens", 2, DisplayBuf); // Return to FlowSens display array and display the first line
 				}
 				else
 					if (Display.DisplaySelection == "Cancel")
 					{
-						Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
+						Display.DisplaySetup(mReadWrite, mUseSD, "FlowSens", 2, DisplayBuf); // Return to FlowSens display array and display the first line
 					}
 					else
 						{
@@ -3085,13 +3641,15 @@ void loop()
 		if (Display.DisplayName == "FlowTest")
 		{
 			/*if here then processing FlowTest
-
 			FlowTest.txt
-			Text1,text,---Flow Test---,Halts measurement and tests flow sensors 1 & 2
+			Text1,text,---Flow Test---,Halts measurement and tests flow sensors 1 & 2 (cont)
+			Text2,text,---Flow Test---,Each flow sensor has 2 outputs, flow in l/min and waveform duration. (cont)
+			Text3,text,---Flow Test---,Sampling rate=5ms so duration should be <= 10 ms (Nyquist).
 			Flow1Value,U-D--###,--Flow1 Value--,U/D  ### l/min
 			Flow2Value,U-D--###,--Flow2 Value--,U/D  ### l/min
+			Flow1Dur,U-D--##----,--Flow1Dur--,U/D  ## ms
+			Flow2Dur,U-D--##----,--Flow2Dur--,U/D  ## ms
 			action,menu,---Action---,Begin_Test   End_Test
-
 			*/
 			if (Display.DisplayLineName == "Action")
 			{
@@ -3121,7 +3679,8 @@ void loop()
 			goto EndDisplayProcessing; //exit processing Display
 		}	// end processing DisplayName== "FlowTest"
 
-		//jf add  processing for new screens here
+		//jf add pump error.txt processing here.
+			//jf add  processing for new screens here
 		
 		ErrorLog("error, unrecognized Display.DisplayName",2);	//should have recognized displayName
 		Serial.print(F("error, unrecognized Display.DisplayName=")); Serial.println(Display.DisplayName);
@@ -3353,7 +3912,6 @@ EndDisplayProcessing:	//target of goto. common exit for processing display array
 		FlowSens.FlowCalcBegin();	// begin the next reading
 	}
 
-	//jf here,  simplify temp sensors to rely on global temp sensor on/off
 
 	//End----------------------------------------------------------Testing Mode---------------------------------------------------------------------
 
