@@ -2329,12 +2329,13 @@ protected:
 #define WaterLvlPowerPin	23		// Digital pin 23 powers the moisture sensor.  Turning on only to read will prolong sensor life due to electroplating
 #define WaterLvlInput	1			// Analog input pin 
 #define WaterLvlSampleInterval 2000	// default sampling interval in ms
+#define WaterLvlTestingInterval 2000 // sampeling interval when testing this sensor
 #define WaterLvlReadDelay	25		// number of ms to wait to read moisture sensor after turning on the power
 #define	WaterDfltNo	20				// Analog reading < means no water touching sensor
 #define WaterDfltLow 140			// Analog reading < this and greater than prior threshold means low level
 #define WaterDfltMid 220			// Analog reading < this and greater than prior threshold means mid level
 
-	boolean	IsOn;					// true if activly taking sensor readings else false
+	//boolean	IsOn;					// true if activly taking sensor readings else false
 	boolean	ReadDelay;				// if true, the window where power to sensor is on and waiting to read
 	int		PollInterval;			// polling interval
 	int		SensorPollContext;		// variable set by SensTmr and passed by code into SensTmr.  It is an index for the timer object
@@ -2350,8 +2351,9 @@ public:
 	int		tempWater;					//debug
 	void	WaterLvlSensorInit(void);	//used like constructor because constructor syntax was not working ;-(.  passes in device #
 	void	TurnOn(boolean TurnOn);		//turn on/off flags and timers used to take readings at intervals
-	void	ReadWaterLvlSensor(void);		// called at polling intervals, reads the water level sensor, and sets results and flags indicating a reading is ready for use
+	void	ReadWaterLvlSensor(void);	// called at polling intervals, reads the water level sensor, and sets results and flags indicating a reading is ready for use
 	void	SetPollInterval(int Delay);	//sets the poll interval, changes the poll interval if sensor IsOn=true	//boolean Locate(void);				// locates the temp sensor at Saddr, returns true if found else false
+	int		GetPollInterval(void);		//gets the value of the polling interval (private to the class)
 } WaterSens;
 
 void WaterLvlSensor::WaterLvlSensorInit(void)
@@ -2375,9 +2377,9 @@ void	WaterLvlSensor::TurnOn(boolean TurnOn)
 	{
 		//if here, then we want to turn on the polling for taking water level readings.  We use SensTmr object of the Timer class
 		//digitalWrite(WaterLvlPowerPin, HIGH);	// turn on power
-		IsOn = true;	//flag that we are taking moisture sensor readings
+		//IsOn = true;	//flag that we are taking moisture sensor readings
 
-						//set the water level range and prior level.  Needed by logic to tell if water is increasing or decreasing
+		//set the water level range and prior level.  Needed by logic to tell if water is increasing or decreasing
 		digitalWrite(WaterLvlPowerPin, HIGH);	// turn power on
 		WaterLvl = analogRead(WaterLvlInput);	//read water level analog input
 		digitalWrite(WaterLvlPowerPin, LOW);	// turn power off
@@ -2395,7 +2397,7 @@ void	WaterLvlSensor::TurnOn(boolean TurnOn)
 	{
 		// turn off polling for temperature sensor readings
 		//digitalWrite(WaterLvlPowerPin, LOW);	// turn off power
-		IsOn = false;	//flag that we are not taking water level readings
+		//IsOn = false;	//flag that we are not taking water level readings
 		SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context
 	}
 	ReadDelay = false;	//flag related to power up delay when reading moisture sensor.
@@ -2439,11 +2441,17 @@ void	WaterLvlSensor::SetPollInterval(int Delay)
 {
 	//saves the poll interval, changes the poll interval if sensor IsOn=true
 	PollInterval = Delay;
-	if (IsOn)
-	{
+	//if (IsOn)
+	//{
 		SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context	
 		SensorPollContext = SensTmr.every(PollInterval, WaterLvlPollRedirect, (void*)4);	// begin polling temp readings at new polling interval
-	}
+	//}
+}
+//----------------------------------------------------------------------
+int		WaterLvlSensor::GetPollInterval(void)
+{
+	//returns the value of the polling interval, which is private
+	return PollInterval;
 }
 //----------------------------------------------------------------------
 void WaterLvlPollRedirect(void* context)
@@ -2936,7 +2944,6 @@ void setup()
 		WaterSens.WaterLvlMid = tempString.toInt();
 
 		Display.DisplayGetSetNum(&tempString, "rate", mget);
-		WaterSens.WaterLvlMid = tempString.toInt();
 		WaterSens.SetPollInterval(tempString.toInt() * 1000);	// convert sampling rate from sec to ms
 
 		// water level sensor is in use so let's test it....show user that it is working
@@ -2955,6 +2962,7 @@ void setup()
 			delay(SetUpDelay);
 		}
 		digitalWrite(WaterLvlPowerPin, LOW);			// make sure power is off
+		WaterSens.TurnOn(true);	//global settings has water sensor on, so begin polling
 	}
 	//--------------------------------------------------------------
 
@@ -3009,7 +3017,7 @@ void setup()
 	SysTimePoll(true);	// begin to poll the Real Time Clock to get system time into SysTm
 
 	Display.DisplayStartStop(true);		// indicate that menu processing will occur. Tells main loop to pass key presses to the Menu
-	Display.DisplaySetup(true, true, "Main_UI", 1, DisplayBuf); // Prepare main-UI display array and display the first line, mode is read only.
+	Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Prepare main-UI display array and display the first line, mode is read-write.
 
 }
 
@@ -3181,6 +3189,31 @@ void loop()
 				}
 			}
 			goto EndDisplayProcessing; //exit processing pumps
+		}
+
+		if (Display.DisplayName == "PumpErr")
+		{
+			/*
+			PumpErr.txt
+			Text1,text,--Error--,Auto uses the water level sensor and it is turned off globally. --cont--
+			Text2,text,--Error--,Turn it on before setting pumps to 'Auto' (Main --> Pumps).
+			action,menu,Continue
+			*/
+
+			if (Display.DisplayLineName == "action")
+			{
+				if (Display.DisplaySelection == "Continue")
+				{
+					dprintln(F("PumpErr-->Continue"));
+					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf);	//Return to main-UI display array and display the first line
+				}
+				else
+				{
+					ErrorLog("error processing PumpErr-->action: unrecognized DisplaySelection", 2);
+					dprint(F("error processing PumpErr-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+				}
+			}
+			goto EndDisplayProcessing;
 		}
 
 		if (Display.DisplayName == "SetRTC_ui")
@@ -3679,12 +3712,163 @@ void loop()
 			goto EndDisplayProcessing; //exit processing Display
 		}	// end processing DisplayName== "FlowTest"
 
-		//jf add pump error.txt processing here.
+		if (Display.DisplayName == "TestErr")
+		{
+			/*
+			TestErr.txt
+			Text1,text,--Error--,The sensor you are trying to test is turned off by global setting. --cont--
+			Text2,text,--Error--,To test, must first turn sensor on via Main_Menu -->Status.
+			action,menu,Continue
+			*/
+
+			if (Display.DisplayLineName == "action")
+			{
+				if (Display.DisplaySelection == "Continue")
+				{
+					dprintln(F("TestErr-->Continue"));
+					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf);	//Return to main-UI display array and display the first line
+				}
+				else
+				{
+					ErrorLog("error processing TestErr-->action: unrecognized DisplaySelection", 2);
+					dprint(F("error processing Pumps-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+				}
+			}
+			goto EndDisplayProcessing; //exit processing pumps
+		}
+
+		if (Display.DisplayName == "H20Lvl")
+		{
+			/*
+			H20Lvl.txt
+			Text1,text,--H2O Sensor--,Functions related to water level sensor. (cont)
+			Text2,text,--H2O Sensor--,Detects multiple levels of water in filter and (cont)
+			Text3,text,--H2O Sensor--,turns on/off upper and lower pump accordingly.
+			action1,menu,---Edit/Test---,Edit_setings  Test_sensor  Cancel
+			*/
+			if (Display.DisplayLineName == "action1")
+			{
+				if (Display.DisplaySelection == "Edit_settings")
+				{
+					dprintln(F("H2OLvl-->action1-->Edit_settings"));	//debug
+					Display.DisplaySetup(mReadWrite, mUseSD, "H2OEdit", 9, DisplayBuf);	//put up display array to edit settings for H2O sensor
+				}
+				else
+					if (Display.DisplaySelection == "Test_sensor")
+					{
+						dprintln(F("H2OLvl-->action1-->Test_sensor"));	//debug
+						Display.DisplaySetup(mReadWrite, mUseSD, "H2OTest", 7, DisplayBuf);	//put up display array to test the H2O sensor
+					}
+					else
+						if (Display.DisplaySelection == "Cancel")
+						{
+							Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
+							goto EndDisplayProcessing; //exit processing Display	
+						}
+						else
+						{
+							ErrorLog("error processing H2OLvl-->action1: unrecognized DisplaySelection", 2);
+							dprint(F("error processing H2OLvl-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+
+						}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}	// end processing DisplayName== "H2OLvl"
+
+		if (Display.DisplayName == "H2OEdit")
+		{
+			/*
+				H2OEdit.txt
+				Text1,text,-H2O Sens Edit-,Used to set water level sensor parameters to control pumps (cont)
+				Text1,text,-H2O Sens Edit-,No H2O = water not touching sensor, both pumps on (cont)
+				Text1,text,-H2O Sens Edit-,mid H2O = lower pump on, upper off (cont)
+				Text1,text,-H2O Sens Edit-,high H20 = both pumps off.
+				H2OLvlNo,U-D--####------,--No H2O--,U/D  #### =none
+				H2OLvlLow,U-D--####------,--Mid H2O--,U/D  #### = Mid
+				H2OLvlMid,U-D--####-------,--High H2O--,U/D  #### = High
+				rate,U-D---------###-,--Sample Rate--,U/D   Every 300s
+				action,menu,---Action---,Update   Cancel
+			*/
+			if (Display.DisplayLineName == "action")
+			{
+				if (Display.DisplaySelection == "Update")
+				{
+					dprintln(F("H2OEdit-->action-->Update"));	//debug
+					Display.DisplayGetSetNum(&tempString, "H2OLvlNo", mget);
+					WaterSens.WaterLvlNo = tempString.toInt();
+
+					Display.DisplayGetSetNum(&tempString, "H2OLvlLow", mget);
+					WaterSens.WaterLvlLow = tempString.toInt();
+
+					Display.DisplayGetSetNum(&tempString, "H2OLvlMid", mget);
+					WaterSens.WaterLvlMid = tempString.toInt();
+
+					Display.DisplayGetSetNum(&tempString, "rate", mget);
+					WaterSens.WaterLvlMid = tempString.toInt();
+					WaterSens.SetPollInterval(tempString.toInt() * 1000);	//set the new polling rate
+				}
+				else
+					if (Display.DisplaySelection == "Cancel")
+					{
+						Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
+						goto EndDisplayProcessing; //exit processing Display	
+					}
+					else
+					{
+						ErrorLog("error processing H2OEdit-->action: unrecognized DisplaySelection", 2);
+						dprint(F("error processing H2OEdit-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+					}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}	// end processing DisplayName== "H2OEdit"
+
+		if (Display.DisplayName == "H2OTest")
+		{
+			/*if here then processing H2OTest
+				H2OTest.txt
+				Text1,text,--H2O Lvl Test--,Halts measurement and tests water level sensor (cont)
+				Text2,text,--H2O Lvl Test--,Value should be between 0 and 1024. (cont)
+				Text3,text,--H2O Lvl Test--,Determine reading for no level--> water not touching sensor (cont)
+				Text4,text,--H2O Lvl Test--,Determine reading for mid level--> water mid filter (cont)
+				Text5,text,--H2O Lvl Test--,Determine reading for high level--> water 1 inch from top outflow.
+				H2OLvl,U-D--####------,-H2O Lvl Value-,U/D  #### l/min
+				action,menu,---Action---,Begin_Test   End_Test
+			*/
+			if (Display.DisplayLineName == "action")
+			{
+				if (Display.DisplaySelection == "Begin_Test")
+				{
+					dprintln(F("H2OTest-->action-->Begin_Test"));	//debug
+					InMonitoringMode = false;	// flag to end monitoring mode....stop reading and logging sensor readings
+					InWaterLvlTestMode = true;	// flag to tell system we are testing the water level sensor
+					WaterSens.SetPollInterval(WaterLvlTestingInterval);	//sampeling delay used for testing. e.g. read every 2 sed
+					Display.DisplayLineRefresh("H2OLvl");	// show the display line for where the water level value will be shown
+				}
+				else
+					if (Display.DisplaySelection == "End_Test")
+					{
+						dprintln(F("H2OTest-->action-->End_Test"));	//debug
+						InMonitoringMode = true;		// flag to resume monitoring mode....resume reading and logging sensor readings
+						InWaterLvlTestMode = false;		// flag to end water level sensor testing
+						WaterSens.SetPollInterval(WaterSens.GetPollInterval());	//retrore soft interupt for when to read the sensor during monitoring
+						Display.DisplaySetup(mReadWrite, mUseSD, "H20Lvl", 4, DisplayBuf); // return to the entry screen for water  sensor display array and display the first line
+					}
+						else
+						{
+							ErrorLog("error processing H2OTest-->action: unrecognized DisplaySelection", 2);
+							dprint(F("error processing H2OTest-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+
+						}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}	// end processing DisplayName== "H2OTest"
+
 			//jf add  processing for new screens here
 		
 		ErrorLog("error, unrecognized Display.DisplayName",2);	//should have recognized displayName
-		Serial.print(F("error, unrecognized Display.DisplayName=")); Serial.println(Display.DisplayName);
+		dprint(F("error, unrecognized Display.DisplayName=")); dprintln(Display.DisplayName);
 	}	// end DisplayUserMadeSelection=true
+
 EndDisplayProcessing:	//target of goto. common exit for processing display array entries for object Display
 
 	Display.DisplayUserMadeSelection = false;		// reset flag because we are processing the response
@@ -3867,52 +4051,71 @@ EndDisplayProcessing:	//target of goto. common exit for processing display array
 
 				Display.DisplayGetSetNum(&tmpStr, "tempValue1", true);	//write the temperature interger as a string with 1 decimal point.
 				Display.DisplayLineRefresh("tempValue1");						//refresh the line but only if it is currently displayed
-			}
-		
+			}		
 		}
+		//------------------------------------------------------------------------------------------
 
+		if (InFlowSensTestMode && FlowSens.FlowReadReady)
+		{
+			/*
+			if here, then in flow sensor testing mode and we have a valid reading.  
+			We want to update 2 display lines in display named FlowTest with the flow rates in l/min
 
-	} // end 	if(!InMonitoringMode)
-	  //------------------------------------------------------------------------------------------
+				FlowTest.txt
+				{snip}
+				Flow1Value,U-D--###,--Flow1 Value--,U/D  ### l/min
+				Flow2Value,U-D--###,--Flow2 Value--,U/D  ### l/min
+				Flow1Dur,U-D--##----,--Flow1Dur--,U/D  ## ms
+				Flow2Dur,U-D--##----,--Flow2Dur--,U/D  ## ms
+				action,menu,---Action---,Begin_Test   End_Test
+			*/
+			String tmpStr;
+			FlowSens.FlowReadReady = false;	//reset because we are processing this
 
-	if (InFlowSensTestMode && FlowSens.FlowReadReady)
-	{
-		/*
-		if here, then in flow sensor testing mode and we have a valid reading.  
-		We want to update 2 display lines in display named FlowTest with the flow rates in l/min
+			//enter flow rate and frequency of cycling.  We are sampling at 5ms, so want the cycle time to be <= 10ms (nyquist freq, sample rate should be minimym of 2x frequency)
+			tmpStr = String(FlowSens.FlowValue1, 0);
+			Display.DisplayGetSetNum(&tmpStr, "Flow1Value", mset);	// set the value, 0 dec
+			Display.DisplayLineRefresh("Flow1Value");				// update display if this is the line user is looking at
 
-			FlowTest.txt
-			{snip}
-			Flow1Value,U-D--###,--Flow1 Value--,U/D  ### l/min
-			Flow2Value,U-D--###,--Flow2 Value--,U/D  ### l/min
-			Flow1Dur,U-D--##----,--Flow1Dur--,U/D  ## ms
-			Flow2Dur,U-D--##----,--Flow2Dur--,U/D  ## ms
+			tmpStr = String(FlowSens.flow1dur, 0);
+			Display.DisplayGetSetNum(&tmpStr, "Flow1Dur", mset);
+			Display.DisplayLineRefresh("Flow1Dur");
+
+			tmpStr = String(FlowSens.FlowValue2, 0);
+			Display.DisplayGetSetNum(&tmpStr, "Flow2Value", mset);
+			Display.DisplayLineRefresh("Flow2Value");
+
+			tmpStr = String(FlowSens.flow2dur, 0);
+			Display.DisplayGetSetNum(&tmpStr, "Flow2Dur", mset);
+			Display.DisplayLineRefresh("Flow2Dur");
+
+			FlowSens.FlowCalcBegin();	// begin the next reading
+		}
+		//------------------------------------------------------------------------------------------
+
+		if (InWaterLvlTestMode && WaterSens.WaterLvlSensReady)
+		{
+			/*	
+			if here, then in water level sensor testing mode and reading is ready. The display array H2OTest is on the display.
+			We want to update the water level reading on the line "H2OLvl"
+			H2OTest.txt
+			Text1,text,--H2O Lvl Test--,Halts measurement and tests water level sensor (cont)
+			Text2,text,--H2O Lvl Test--,Value should be between 0 and 1024. (cont)
+			Text3,text,--H2O Lvl Test--,Determine reading for no level--> water not touching sensor (cont)
+			Text4,text,--H2O Lvl Test--,Determine reading for mid level--> water mid filter (cont)
+			Text5,text,--H2O Lvl Test--,Determine reading for high level--> water 1 inch from top outflow.
+			H2OLvl,U-D--####------,-H2O Lvl Value-,U/D  #### l/min
 			action,menu,---Action---,Begin_Test   End_Test
-		*/
-		String tmpStr;
-		FlowSens.FlowReadReady = false;	//reset because we are processing this
+			*/
 
-		//enter flow rate and frequency of cycling.  We are sampling at 5ms, so want the cycle time to be <= 10ms (nyquist freq, sample rate should be minimym of 2x frequency)
-		tmpStr = String(FlowSens.FlowValue1, 0);
-		Display.DisplayGetSetNum(&tmpStr, "Flow1Value", mset);	// set the value, 0 dec
-		Display.DisplayLineRefresh("Flow1Value");				// update display if this is the line user is looking at
-
-		tmpStr = String(FlowSens.flow1dur, 0);
-		Display.DisplayGetSetNum(&tmpStr, "Flow1Dur", mset);
-		Display.DisplayLineRefresh("Flow1Dur");
-
-		tmpStr = String(FlowSens.FlowValue2, 0);
-		Display.DisplayGetSetNum(&tmpStr, "Flow2Value", mset);
-		Display.DisplayLineRefresh("Flow2Value");
-
-		tmpStr = String(FlowSens.flow2dur, 0);
-		Display.DisplayGetSetNum(&tmpStr, "Flow2Dur", mset);
-		Display.DisplayLineRefresh("Flow2Dur");
-
-		FlowSens.FlowCalcBegin();	// begin the next reading
-	}
-
-
+			String tmpStr;
+			WaterSens.WaterLvlSensReady = false;	//reset because we are processing this		
+			tmpStr = String(WaterSens.WaterLvl);	//convert the WaterLvl value (float to string)
+			Display.DisplayGetSetNum(&tmpStr, "H2OLvl", mset);	//enter the value into the display array
+			Display.DisplayLineRefresh("H2OLvl");	// update the display
+		}
+	} // end 	if(!InMonitoringMode)
+	    //------------------------------------------------------------------------------------------
 	//End----------------------------------------------------------Testing Mode---------------------------------------------------------------------
 
 

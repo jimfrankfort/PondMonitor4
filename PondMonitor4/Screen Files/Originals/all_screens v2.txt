@@ -144,6 +144,6 @@ action,menu,Continue
 
 PumpErr.txt
 Text1,text,--Error--,Auto uses the water level sensor and it is turned off globally. --cont--
-Text2,text,--Error--,Turn it on before setting pumps to 'Auto'.
+Text2,text,--Error--,Turn it on before setting pumps to 'Auto' (Main --> Pumps). 
 action,menu,Continue
 
