@@ -24,14 +24,6 @@ rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
 action,menu,---Action---,Update  Cancel
 
 
-TSens0.txt----old-----
-	Text1,text,---Tmp Sensor 0---,Parameter set up for temperature sensor 0
-	tempThresh,U-D--###------,--Alrm Thresh--,U/D  090 deg F
-	tempAddr,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFA4F9 
-	tempAddr,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400B4 
-	tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp  
-	handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
-	action,menu,---Action---,Update   Cancel
 TSens0.txt
 Text1,text,---Tmp Sensor 0---,Parameter set up for temperature sensor 0
 tempThreshH,U-D--###------,--Alrm Thresh--,U/D  090 deg F
@@ -42,14 +34,6 @@ tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp
 handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
 action,menu,---Action---,Update   Cancel
 
-TSens1.txt-----old-----
-	Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1
-	tempThresh,U-D--###------,--Alrm Thresh--,U/D  110 deg F
-	tempAddr,U-D----CCCCCCCC-,----Addr_Lt----,U/D    28FFC38E 
-	tempAddr,U-D----CCCCCCCC-,----Addr_Rt----,U/D    541400DA 
-	tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Device Tmp  
-	handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
-	action,menu,---Action---,Update   Cancel
 
 TSens1.txt
 Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1

@@ -22,6 +22,8 @@
 #ifdef Debug
 #define dprint(p)	Serial.print(p)
 #define dprintln(p)	Serial.println(p)
+#define dprint2(p,u)	Serial.print(p,u)
+#define dprintln2(p,u)	Serial.println(p,u)
 
 #else
 #define dprint(p)
@@ -124,21 +126,21 @@ String ProgMemGetStr(const char* LUwhich, unsigned int LUlen)
 	This routine returns a string stored in program memory that is needed by the calling routine.
 	Strings are saved in program memory as a char array which are read out one char at a time and appended to the String that is returned.
 	*/
-	Serial.println("reading from ProgMemGetStr");	//debug
+	dprintln("reading from ProgMemGetStr");	//debug
 	String	RetString;					//holds the string that will be returned.
 	char	ChrFromString;				//holds the character returned from the string stored in Program memory
 	for (unsigned int x = 0; x<< LUlen; x++)
 	{
 		ChrFromString = pgm_read_byte_near(LUwhich + x);
-		Serial.print(ChrFromString);	//debug
+		dprint(ChrFromString);	//debug
 		RetString += ChrFromString;
 	}
-	Serial.println("RetString=" + RetString);	//debug
+	dprintln("RetString=" + RetString);	//debug
 	return RetString;
 }
 
 
-/* ---------------------------------------------- ErrorLog Routines --------------------------------------------------*/
+/* --------------------------------------------------- Log Routines --------------------------------------------------*/
 /*
 Routines used to log errors to SD card. Used throught code/classes that follow.
 Error log is in xml format containing a date, log entry, and error level (used to determine action e.g. turn on red LED).  XML strings are 
@@ -196,11 +198,18 @@ void ErrorLog(String error,String param,int errLevel)
 	{ 
 		//error log couldn't be opened, this is a serious error but will continue processing
 		digitalWrite(RedLEDpin, 0);		//turn on Red LED
-		Serial.println("Cannot open error log file");	//debug
+		dprintln("Cannot open error log file");	//debug
 	}
 }
 
-
+void MonitorLog(String name, String ID, String valueStr, float valueFloat, int valueInt, String unitStr, String value1Str, float value1Float, int value1Int, String unit1Str)
+{
+	/*
+	code used by all sensors to make log entry of their readings.  This is general purpose to accomidate a name, ID, and u values.
+	The min required info is name, value, and units.  There is no completeness or validity checking done.  If there is an error with the SD card
+	this routine will log it.  The sensors will not be made aware of an SD card issue
+	*/
+}
 //--------------------------Display Class Definition and Display Related Global Variables -----------------------------
 
 //buffer used to  load/save string arrays used for Display object.  This is max 80 chr X 7 lines
@@ -338,16 +347,16 @@ DisplayClass::DisplayClass(void)
 int DisplayClass::DisplayAdvPastSpace(String Mline, int Start)
 {
 	//starting  at a space in a string, return the position of the next non-space chr
-	//Serial.print("in DisplayAdvPastSpace, values passed in: Mline=|"); Serial.print(Mline); Serial.print("|, start="); Serial.println(Start);
+	//dprint("in DisplayAdvPastSpace, values passed in: Mline=|"); dprint(Mline); dprint("|, start="); dprintln(Start);
 	unsigned int x = Start;
 	while (Mline[x] == ' ' && x < Mline.length() + 1)
 	{
 		x++;	//advance until encounter a character other than space
 	}
 
-	//Serial.print("chr and index='"); Serial.print(Mline[x]); Serial.print("' , "); Serial.println(x);//Serial.print ('|');
-	//Serial.print(Mline[x]);
-	//Serial.println('|');
+	//dprint("chr and index='"); dprint(Mline[x]); dprint("' , "); dprintln(x);//dprint ('|');
+	//dprint(Mline[x]);
+	//dprintln('|');
 	return x;	// return the index of the non-space chr.
 }
 //------------------------------------------
@@ -366,9 +375,9 @@ int DisplayClass::DisplayBkupPastSpace(String Mline, int Start)
 		x--;	//backup until encounter a character other than space
 	}
 
-	//Serial.print ('|');
-	//Serial.print(Mline[x]);
-	//Serial.println('|');
+	//dprint ('|');
+	//dprint(Mline[x]);
+	//dprintln('|');
 	return x;	// return the index of the non-space chr.
 }
 //------------------------------------------
@@ -381,9 +390,9 @@ int DisplayClass::DisplayBkupToSpace(String Mline, int Start)
 		x--;	//backup until encounter a space
 	}
 
-	//Serial.print ('|');
-	//Serial.print(Mline[x]);
-	//Serial.println('|');
+	//dprint ('|');
+	//dprint(Mline[x]);
+	//dprintln('|');
 	return x;	// return the index of the space chr.
 }
 //------------------------------------------
@@ -416,9 +425,9 @@ void DisplayClass::MonthEntry(boolean increment)
 	int idx;
 	String tmpStr, MonthStr;
 	tmpStr = DisplayLine.substring(DisplayPos, DisplayPos + 2);
-	Serial.println(tmpStr);
+	dprintln(tmpStr);
 	idx = tmpStr.toInt() - 1;	//month # -1 = index # due to index starting with 0
-	Serial.println(idx);
+	dprintln(idx);
 
 	if (increment)
 	{
@@ -432,14 +441,14 @@ void DisplayClass::MonthEntry(boolean increment)
 	}
 
 	MonthStr = ProgMemLU(DisplayMonth, idx, 2);	//retrieve the 2 character portion (MM) of DisplayMonth indexed by idx
-												//Serial.println(MonthStr);Serial.print("displayPos="); Serial.println(DisplayPos);
-												//Serial.print("0-DisplayPos=|"); Serial.print(DisplayLine.substring(0,DisplayPos)); Serial.print("| displayPos+2-->len=|"); Serial.print( DisplayLine.substring (DisplayPos+2,DisplayLine.length()));Serial.println("|");
+												//dprintln(MonthStr);dprint("displayPos="); dprintln(DisplayPos);
+												//dprint("0-DisplayPos=|"); dprint(DisplayLine.substring(0,DisplayPos)); dprint("| displayPos+2-->len=|"); dprint( DisplayLine.substring (DisplayPos+2,DisplayLine.length()));dprintln("|");
 	tmpStr = DisplayLine.substring(0, DisplayPos) + MonthStr + DisplayLine.substring(DisplayPos + 2, DisplayLine.length());
 	//replace the month 
-	//Serial.print("|"); Serial.print(DisplayLine); Serial.println("|");	//debug
-	//Serial.print("|"); Serial.print(tmpStr); Serial.println("|");//debug
+	//dprint("|"); dprint(DisplayLine); dprintln("|");	//debug
+	//dprint("|"); dprint(tmpStr); dprintln("|");//debug
 	DisplayLine = tmpStr;
-	//Serial.print("|"); Serial.print(DisplayLine); Serial.println("|");	//debug
+	//dprint("|"); dprint(DisplayLine); dprintln("|");	//debug
 }
 //------------------------------------------
 void DisplayClass::DayEntry(boolean increment)
@@ -463,8 +472,8 @@ void DisplayClass::DayEntry(boolean increment)
 
 	DayStr = ProgMemLU(DisplayDay, idx, 2);	//retrieve the 2 character portion (dd) of DisplayDay indexed by idx
 	tmpStr = DisplayLine.substring(0, DisplayPos) + DayStr + DisplayLine.substring(DisplayPos + 2, DisplayLine.length());	//replace the month
-																															//Serial.print("|"); Serial.print(DisplayLine); Serial.println("|");	//debug
-																															//Serial.print("|"); Serial.print(tmpStr); Serial.println("|");//debug
+																															//dprint("|"); dprint(DisplayLine); dprintln("|");	//debug
+																															//dprint("|"); dprint(tmpStr); dprintln("|");//debug
 	DisplayLine = tmpStr;
 }
 //------------------------------------------
@@ -489,8 +498,8 @@ void DisplayClass::YearEntry(boolean increment)
 
 	YrStr = ProgMemLU(DisplayYear, idx, 1);
 	tmpStr = DisplayLine.substring(0, DisplayPos) + YrStr + DisplayLine.substring(DisplayPos + 1, DisplayLine.length());	//replace the month
-																															//Serial.print("|"); Serial.print(DisplayLine); Serial.println("|");	//debug
-																															//Serial.print("|"); Serial.print(tmpStr); Serial.println("|");//debug
+																															//dprint("|"); dprint(DisplayLine); dprintln("|");	//debug
+																															//dprint("|"); dprint(tmpStr); dprintln("|");//debug
 	DisplayLine = tmpStr;
 }
 //------------------------------------------
@@ -649,20 +658,20 @@ void DisplayClass::DisplayLineSetup(String Mline)
 	an option to 'continue', after which the routine hands off to the program logic.  There are public routines that allow logic to set or read the data entered
 	by the user.
 	*/
-	//Serial.print(F("DisplayLineSetup SCRAM="));Serial.println(getFreeSram()); //debug
+	//dprint(F("DisplayLineSetup SCRAM="));dprintln(getFreeSram()); //debug
 	int tmp1, tmp2, tmp3;
 	String TemplateChar;							// used to process the TemplateLine
 	tmp1 = Mline.indexOf(',');						// get position of comma, used to parse
 	DisplayLineName = Mline.substring(0, tmp1);		// get DisplayLineName
 	tmp2 = Mline.indexOf(',', tmp1 + 1);				// position of next comma
 	TemplateLine = Mline.substring(tmp1 + 1, tmp2);	// get TemplateLine
-													//Serial.println("templateLine=|" + TemplateLine +"|");	
+													//dprintln("templateLine=|" + TemplateLine +"|");	
 	tmp3 = Mline.indexOf(',', tmp2 + 1);				// position of next comma
 	DisplayLineTitle = Mline.substring(tmp2 + 1, tmp3); // get DisplayLineTitle
 	DisplayLine = "                        " + Mline.substring(tmp3 + 1, Mline.length());	//snip out the Display options and pre-pend with spaces
 	DisplayEndPos = DisplayLine.length();					// set the end of the Display position pointer
 	DisplayLine += "                    ";				// pad the DisplayLine with spaces at the end with Display line
-														//Serial.print("DisplayLine=|"); Serial.print(DisplayLine); Serial.println("|");
+														//dprint("DisplayLine=|"); dprint(DisplayLine); dprintln("|");
 	DisplayStartPos = DisplayAdvPastSpace(DisplayLine, 0);	// find the first non-space chr
 	DisplayPos = DisplayStartPos;							// position index used for scrolling
 
@@ -673,13 +682,13 @@ void DisplayClass::DisplayLineSetup(String Mline)
 	lcd.print(DisplayLineTitle);
 	lcd.setCursor(0, 1);
 
-	//Serial.println("DisplayLine=" + DisplayLine);
-	//Serial.print("DisplayStartPos="); Serial.print(" DisplayEndPos="); Serial.print(DisplayEndPos); Serial.print(" DisplayPos="); Serial.println(DisplayPos);
+	//dprintln("DisplayLine=" + DisplayLine);
+	//dprint("DisplayStartPos="); dprint(" DisplayEndPos="); dprint(DisplayEndPos); dprint(" DisplayPos="); dprintln(DisplayPos);
 
 	if (DisplayEndPos - DisplayStartPos + 1>DisplayDisplayLen)
 	{
 		//length of the Display line is wider than display
-		//Serial.println("length of display line is wider than display");
+		//dprintln("length of display line is wider than display");
 		lcd.print(DisplayLine.substring(DisplayPos, DisplayPos + DisplayDisplayLen - 1) + '>');	// put up as much as will fit for the Display, with indicator that there is more
 	}
 	else
@@ -752,10 +761,10 @@ void DisplayClass::DisplaySetup(boolean isReadOnly, boolean readFromSD, String m
 		if (ReadStringArraySD(mnuName, mnuLines) != mnuLines)	//read menuName from /Save folder of the SD card into DisplayBuf.  If successfull, then will read all the lines else error.
 		{
 			//if here then there was an error reading the file.
-			Serial.println(F("Error reading menu in DisplayClass::DisplaySetup"));	//replace with errorlog
+			dprintln(F("Error reading menu in DisplayClass::DisplaySetup"));	//replace with errorlog
 		}
-		//Serial.print(F("UsingDisplayPntr")); 
-		//for (int z=0; z<mnuLines; z++) {Serial.println(DisplayPntr[z]);	}	//debug
+		//dprint(F("UsingDisplayPntr")); 
+		//for (int z=0; z<mnuLines; z++) {dprintln(DisplayPntr[z]);	}	//debug
 
 	}
 	else
@@ -776,7 +785,7 @@ void DisplayClass::DisplaySetup(boolean isReadOnly, boolean readFromSD, String m
 void DisplayClass::DisplayLineRefresh(String LineName)
 {
 	// Refreshes the display line if the current display line== LineName.  Used to update something that is changing. e.g. when testing temp, this is used to show the temp changine.
-	//Serial.print("LineName="); Serial.println(DisplayLineName);	//debug
+	//dprint("LineName="); dprintln(DisplayLineName);	//debug
 	if (LineName == DisplayLineName)
 	{
 		//if here, then the line currently being displayed is the one we want to refresh, pointed to by DisplayIndex
@@ -920,10 +929,10 @@ void DisplayClass::ProcessDisplay(int KeyID)
 			{
 				// get the option that starts at DisplayPoss
 				DisplayOptStart = DisplayPos;
-				//Serial.println("displayLine=|" + DisplayLine + "|");
+				//dprintln("displayLine=|" + DisplayLine + "|");
 				DisplayOptEnd = (DisplayAdvToSpace(DisplayLine, DisplayPos));
-				//Serial.print("DisplayOptEnd="); Serial.println(DisplayOptEnd);
-				//Serial.print("DisplaySelection=");Serial.print(DisplayLine.substring(DisplayOptStart,DisplayOptEnd));Serial.print("  DisplayStartPos=");Serial.print(DisplayStartPos);Serial.print("  DisplayOptStart=");Serial.print(DisplayOptStart);Serial.print("   DisplayOptEnd=");Serial.print(DisplayOptEnd);Serial.print("   selection length=");Serial.println(DisplaySelection.length());
+				//dprint("DisplayOptEnd="); dprintln(DisplayOptEnd);
+				//dprint("DisplaySelection=");dprint(DisplayLine.substring(DisplayOptStart,DisplayOptEnd));dprint("  DisplayStartPos=");dprint(DisplayStartPos);dprint("  DisplayOptStart=");dprint(DisplayOptStart);dprint("   DisplayOptEnd=");dprint(DisplayOptEnd);dprint("   selection length=");dprintln(DisplaySelection.length());
 				DisplaySelection = DisplayLine.substring(DisplayOptStart, DisplayOptEnd);	// get the string of the option
 				DisplayUserMadeSelection = true;	//polling routine will see this and fetch results found in DisplayName, DisplayLineName, DisplaySelection
 				break;		// end processing SELECT_KEY
@@ -947,7 +956,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 				{
 					DisplayIndex++;	//Increment DisplayIndex
 					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
-					Serial.println("KeyDown"); Serial.println(DisplayBuf[DisplayIndex]);	//debug
+					dprintln("KeyDown"); dprintln(DisplayBuf[DisplayIndex]);	//debug
 				}
 				break;
 			}	// done with DOWN_KEY
@@ -977,7 +986,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 				while ((TemplateLine[DisplayPos - DisplayStartPos] == '-') && (DisplayPos < DisplayStartPos + DisplayDisplayLen - 1))
 				{
 					DisplayPos++;	// continue to advance to non "-" chr and process below
-									//Serial.print(TemplateLine[DisplayPos-DisplayStartPos]);	//debug					
+									//dprint(TemplateLine[DisplayPos-DisplayStartPos]);	//debug					
 				}
 				if (DisplayPos - DisplayStartPos >= TemplateLine.length())
 				{
@@ -993,23 +1002,23 @@ void DisplayClass::ProcessDisplay(int KeyID)
 				while ((TemplateLine[DisplayPos - DisplayStartPos] == '-') && (DisplayPos > DisplayStartPos))
 				{
 					DisplayPos--;// continue to back up to non "-" chr and process below
-								 //Serial.print(TemplateLine.substring(DisplayPos-DisplayStartPos,DisplayPos-DisplayStartPos+1));	//debug						
+								 //dprint(TemplateLine.substring(DisplayPos-DisplayStartPos,DisplayPos-DisplayStartPos+1));	//debug						
 				}
 				break;	//done processing LS_curKey
 			}
 
 			TempChar = TemplateLine[DisplayPos - DisplayStartPos];		//get the character under the cursor					
-																		//Serial.print("TempChar="); Serial.print(TempChar);Serial.print("  DisplayPos="); Serial.println(DisplayPos);	//debug
+																		//dprint("TempChar="); dprint(TempChar);dprint("  DisplayPos="); dprintln(DisplayPos);	//debug
 
 																		//process the character under the DisplayPos cursor
 			if (TempChar == 'm' && !DisplayReadOnly)	// pointing to first digit of month in date, only process if display is read/write
 			{
-				//Serial.println("processing TemplateChar=m");	//debug
+				//dprintln("processing TemplateChar=m");	//debug
 				switch (tmpKey)
 				{
 				case (UP_KEY) :
 				{
-					//Serial.println("month, upkey");							
+					//dprintln("month, upkey");							
 					MonthEntry(true);
 					break;
 				}	// done with UP_KEY
@@ -1017,7 +1026,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 				case (DOWN_KEY) :
 				{
 					MonthEntry(false);
-					//Serial.println("month, downkey");								
+					//dprintln("month, downkey");								
 					break;
 				}	// done with DOWN_KEY	
 				}
@@ -1028,7 +1037,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 
 			if (TempChar == 'd'&& !DisplayReadOnly)	// pointing to first digit of day in date
 			{
-				//Serial.println("processing TemplateChar=d");	//debug
+				//dprintln("processing TemplateChar=d");	//debug
 				switch (tmpKey)
 				{
 				case (UP_KEY) :
@@ -1049,7 +1058,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 
 			if (TempChar == 'y' && !DisplayReadOnly)	// pointing to 3rd digit of yyyy in year
 			{
-				//Serial.println("processing TemplateChar=y");	//debug					
+				//dprintln("processing TemplateChar=y");	//debug					
 				switch (tmpKey)
 				{
 				case (UP_KEY) :
@@ -1070,7 +1079,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 
 			if (TempChar == 'a' && !DisplayReadOnly)	// pointing to 1st chr in day of week
 			{
-				//Serial.println("processing TemplateChar=a");	//debug
+				//dprintln("processing TemplateChar=a");	//debug
 				switch (tmpKey)
 				{
 				case (UP_KEY) :
@@ -1091,7 +1100,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 
 			if (TempChar == 'H'&& !DisplayReadOnly)	// pointing to first digit of hour in HH:MM
 			{
-				//Serial.println("processing TemplateChar=H");	//debug
+				//dprintln("processing TemplateChar=H");	//debug
 				switch (tmpKey)
 				{
 				case (UP_KEY) :
@@ -1172,7 +1181,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 
 			if (TempChar == 'U')	// pointing to the Display Up selection
 			{
-				//Serial.println("processing TemplateChar=U");	//debug
+				//dprintln("processing TemplateChar=U");	//debug
 				switch (tmpKey)
 				{
 				case (UP_KEY) :
@@ -1202,7 +1211,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 
 			if (TempChar == 'D')	// pointing to the Display Down selection
 			{
-				//Serial.println("processing TemplateChar=D");	//debug					
+				//dprintln("processing TemplateChar=D");	//debug					
 				switch (tmpKey)
 				{
 				case (UP_KEY) :
@@ -1233,16 +1242,16 @@ void DisplayClass::ProcessDisplay(int KeyID)
 
 			// update display array if user made changes to the displayLine.
 		UpdateCheck:		//target of goto from processing date, time, numeric, and alphanumeric
-							//Serial.println("testing UpdateDisplayArray");
+							//dprintln("testing UpdateDisplayArray");
 			if (UpdateDisplayArray)
 			{
 				String tmpStr = DisplayLine;
 				tmpStr.trim();	//trim the whitespace added as padding prior to updating the display array
 								//change the entry			
-								//Serial.print("Before= |");Serial.print(DisplayPntr[DisplayIndex]);Serial.println("|");	//debug					
+								//dprint("Before= |");dprint(DisplayPntr[DisplayIndex]);dprintln("|");	//debug					
 								//DisplayLine.trim();	//trim leading and trailing whitespace					
 				DisplayPntr[DisplayIndex] = DisplayLineName + ',' + TemplateLine + ',' + DisplayLineTitle + ',' + tmpStr;	// change the entry in the display array
-																															//Serial.print("After=  |");Serial.print(DisplayPntr[DisplayIndex]);Serial.println("|");	//debug
+																															//dprint("After=  |");dprint(DisplayPntr[DisplayIndex]);dprintln("|");	//debug
 			}
 			break;
 		} // end case DisplayOption = 2 
@@ -1256,7 +1265,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 			{
 			case (RIGHT_KEY) :
 			{
-				//Serial.println(DisplayPos);	//debug
+				//dprintln(DisplayPos);	//debug
 
 				//find the new starting position.  Advance the width of the display and back up to nearest whold word
 				DisplayPos += DisplayDisplayLen;
@@ -1266,17 +1275,17 @@ void DisplayClass::ProcessDisplay(int KeyID)
 				if (DisplayLine[DisplayPos] != ' ')
 				{
 					//there is one or more spaces at the right side of the display
-					//Serial.print("Displaypos!=' ' ");
+					//dprint("Displaypos!=' ' ");
 					while (DisplayLine[DisplayPos] != ' ' && DisplayPos>DisplayStartPos) { DisplayPos--; }	//back up to start of nearest whole word
-																											//Serial.println(DisplayPos);	//debug
+																											//dprintln(DisplayPos);	//debug
 				}
 				else
 				{
 					//we're on a space, so back up to the next space
-					//Serial.print("Displaypos==' ' ");
+					//dprint("Displaypos==' ' ");
 					while (DisplayLine[DisplayPos] == ' ' && DisplayPos>DisplayStartPos) { DisplayPos--; }	//back up to start of nearest whole word
 					while (DisplayLine[DisplayPos] != ' ' && DisplayPos>DisplayStartPos) { DisplayPos--; }	//back up to start of nearest whole word
-																											//Serial.println(DisplayPos);	//debug							
+																											//dprintln(DisplayPos);	//debug							
 				}
 
 
@@ -1388,9 +1397,9 @@ boolean DisplayClass::FindAndParseDisplayLine(String MnuLineName, int *Idx, Stri
 
 
 	/*debug
-	Serial.println("MnuLineName=" + MnuLineName);
-	Serial.print(" Inputs: index=" );Serial.println(*Idx);
-	Serial.print(" DisplayTitle="); Serial.print(*DisplayTitle); Serial.print(" templateln="); Serial.print(*TemplateLn); Serial.print(" displayLn="); Serial.println(*DisplayLn);
+	dprintln("MnuLineName=" + MnuLineName);
+	dprint(" Inputs: index=" );dprintln(*Idx);
+	dprint(" DisplayTitle="); dprint(*DisplayTitle); dprint(" templateln="); dprint(*TemplateLn); dprint(" displayLn="); dprintln(*DisplayLn);
 	*/
 
 	int tmp1, tmp2, tmp3;
@@ -1399,7 +1408,7 @@ boolean DisplayClass::FindAndParseDisplayLine(String MnuLineName, int *Idx, Stri
 				//find the string in the display array that has the name MnuLineName
 	for (int x = 1; x<DisplayLineCnt + 1; x++)	//DisplayLineCnt is protected within Display object and is the number of lines in the dispaly array
 	{
-		//Serial.println(x);
+		//dprintln(x);
 		if (DisplayPntr[*Idx].startsWith(MnuLineName))
 		{
 			tmpBool = true;	// found string
@@ -1412,7 +1421,7 @@ boolean DisplayClass::FindAndParseDisplayLine(String MnuLineName, int *Idx, Stri
 	}
 	if (!tmpBool) return false;	//// error, didn't find the MnuLineName.  Probably a typo in coding
 
-								//Serial.print(" Inputs: index=" );Serial.println(*Idx);
+								//dprint(" Inputs: index=" );dprintln(*Idx);
 								//found the entry in the display array, so parse it
 	tmp1 = DisplayPntr[*Idx].indexOf(',');						// get position of comma, used to parse
 	tmp2 = DisplayPntr[*Idx].indexOf(',', tmp1 + 1);				// position of 2nd comma
@@ -1435,27 +1444,27 @@ boolean DisplayClass::DisplayGetSetDate(String *DateStr, String MnuLineName, boo
 																			// find and parse the display line
 	if (!FindAndParseDisplayLine(MnuLineName, &Index, &DisplayTitle, &TemplateLine, &DisplayLine))return false;	// problem parsing display line, likely a typo in call, return error	
 
-																												//Serial.println ("old entry=" + DisplayPntr[Index]);	//debug
+																												//dprintln ("old entry=" + DisplayPntr[Index]);	//debug
 	tmp1 = TemplateLine.indexOf('m');	//find where in the template the first chr of month is.
 	if (tmp1 == -1) return false;		//-1 means didn't find chr which is an unexpected error, probably a typo in template or referencing incorrect line in display array	
-										//Serial.print ("index="); Serial.println(tmp1);	//debug
+										//dprint ("index="); dprintln(tmp1);	//debug
 	if (set)
 	{
 		//user wants to set the date
-		//Serial.print("old displayline="); Serial.println(DisplayLine);	//debug
-		//Serial.println(Index);	//debug
+		//dprint("old displayline="); dprintln(DisplayLine);	//debug
+		//dprintln(Index);	//debug
 		DisplayLine = DisplayLine.substring(0, tmp1) + *DateStr + DisplayLine.substring(tmp1 + LenOfDate, DisplayLine.length());	//splice new date into display line.  works because the chr position in the template matches the those in the display line
-																																	//Serial.print("new displayline="); Serial.println(DisplayLine);	//debug	
+																																	//dprint("new displayline="); dprintln(DisplayLine);	//debug	
 
 																																	//change the entry	
 		DisplayPntr[Index] = MnuLineName + ',' + TemplateLine + ',' + DisplayTitle + ',' + DisplayLine;	// change the entry in the display array
-																										//Serial.println ("new entry=" + DisplayPntr[Index]);	//debug
+																										//dprintln ("new entry=" + DisplayPntr[Index]);	//debug
 	}
 	else
 	{
 		//user wants to read the date
 		*DateStr = DisplayLine.substring(tmp1, tmp1 + LenOfDate);
-		//Serial.println("date string='" + *DateStr +"'");	//debug
+		//dprintln("date string='" + *DateStr +"'");	//debug
 
 	}
 
@@ -1478,18 +1487,18 @@ boolean DisplayClass::DisplayGetSetTime(String *TimeStr, String MnuLineName, boo
 	if (set)
 	{
 		//user wants to set the time
-		//Serial.print("old displayline="); Serial.println(DisplayLine);	//debug
-		//Serial.println(Index);	//debug
+		//dprint("old displayline="); dprintln(DisplayLine);	//debug
+		//dprintln(Index);	//debug
 		tmpStr = TimeStr->substring(0, LenOfTime);	// clip time to 5 chrs
 		DisplayLine = DisplayLine.substring(0, tmp1) + tmpStr + DisplayLine.substring(tmp1 + LenOfTime, DisplayLine.length());	//splice new time into display line.  works because the chr position in the template matches the those in the display line
 																																//change the entry	
 		DisplayPntr[Index] = MnuLineName + ',' + TemplateLine + ',' + DisplayTitle + ',' + DisplayLine;	// change the entry in the display array
-																										//Serial.println ("new entry=" + DisplayPntr[Index]);	//debug
+																										//dprintln ("new entry=" + DisplayPntr[Index]);	//debug
 	}
 	else
 	{
 		*TimeStr = DisplayLine.substring(tmp1, tmp1 + LenOfTime);
-		//Serial.println("time string='" + *TimeStr +"'");	//debug
+		//dprintln("time string='" + *TimeStr +"'");	//debug
 
 	}
 
@@ -1512,17 +1521,17 @@ boolean DisplayClass::DisplayGetSetDOW(String *DayStr, String MnuLineName, boole
 	if (set)
 	{
 		//user wants to set the day
-		//Serial.print("old displayline="); Serial.println(DisplayLine);	//debug
-		//Serial.println(Index);	//debug
+		//dprint("old displayline="); dprintln(DisplayLine);	//debug
+		//dprintln(Index);	//debug
 		DisplayLine = DisplayLine.substring(0, tmp1) + *DayStr + DisplayLine.substring(tmp1 + LenOfDOW, DisplayLine.length());	//splice new DOW into display line.  works because the chr position in the template matches the those in the display line
 																																//change the entry
 		DisplayPntr[Index] = MnuLineName + ',' + TemplateLine + ',' + DisplayTitle + ',' + DisplayLine;	// change the entry in the display array
-																										//Serial.println ("new entry=" + DisplayPntr[Index]);	//debug
+																										//dprintln ("new entry=" + DisplayPntr[Index]);	//debug
 	}
 	else
 	{
 		*DayStr = DisplayLine.substring(tmp1, tmp1 + LenOfDOW);
-		//Serial.println("DOW string='" + *DayhStr +"'");	//debug
+		//dprintln("DOW string='" + *DayhStr +"'");	//debug
 
 	}
 
@@ -1545,18 +1554,18 @@ boolean DisplayClass::DisplayGetSetNum(String *NumStr, String MnuLineName, boole
 	if (set)
 	{
 		//user wants to set 
-		//Serial.print("numStr="); Serial.println(*NumStr);	//debug
-		//Serial.print("old displayline="); Serial.println(DisplayLine);	//debug
-		//Serial.println(Index);	//debug
+		//dprint("numStr="); dprintln(*NumStr);	//debug
+		//dprint("old displayline="); dprintln(DisplayLine);	//debug
+		//dprintln(Index);	//debug
 		DisplayLine = DisplayLine.substring(0, tmp1) + *NumStr + DisplayLine.substring(tmp2+1, DisplayLine.length());	//splice new numeric value into display line.  works because the chr position in the template matches the those in the display line
 																													//change the entry
 		DisplayPntr[Index] = MnuLineName + ',' + TemplateLine + ',' + DisplayTitle + ',' + DisplayLine;	// change the entry in the display array
-																										//Serial.println ("new entry=" + DisplayPntr[Index]);	//debug
+																										//dprintln ("new entry=" + DisplayPntr[Index]);	//debug
 	}
 	else
 	{
 		*NumStr = DisplayLine.substring(tmp1, tmp2 + 1);
-		//Serial.println("DOW string='" + *NumStr +"'");	//debug
+		//dprintln("DOW string='" + *NumStr +"'");	//debug
 
 	}
 
@@ -1579,18 +1588,18 @@ boolean DisplayClass::DisplayGetSetChrs(String *ChrStr, String MnuLineName, bool
 	if (set)
 	{
 		//user wants to set
-		//Serial.print("old displayline="); Serial.println(DisplayLine);	//debug
-		//Serial.println(Index);	//debug
+		//dprint("old displayline="); dprintln(DisplayLine);	//debug
+		//dprintln(Index);	//debug
 		NewChrStr = *ChrStr;
 		DisplayLine = DisplayLine.substring(0, tmp1) + NewChrStr.substring(0, tmp2 - tmp1 + 1) + DisplayLine.substring(tmp2, DisplayLine.length());	//splice new String value into display line.  works because the chr position in the template matches the those in the display line
 																																					//change the entry
 		DisplayPntr[Index] = MnuLineName + ',' + TemplateLine + ',' + DisplayTitle + ',' + DisplayLine;	// change the entry in the display array
-																										//Serial.println ("new entry=" + DisplayPntr[Index]);	//debug
+																										//dprintln ("new entry=" + DisplayPntr[Index]);	//debug
 	}
 	else
 	{
 		*ChrStr = DisplayLine.substring(tmp1, tmp2 + 1);
-		//Serial.print("string="); Serial.println(*ChrStr);	//debug
+		//dprint("string="); dprintln(*ChrStr);	//debug
 
 	}
 
@@ -1607,7 +1616,7 @@ boolean DisplayClass::DisplaySetTxt(String *TxtStr, String MnuLineName)
 																			// find and parse the display line
 	if (!FindAndParseDisplayLine(MnuLineName, &Index, &DisplayTitle, &TemplateLine, &DisplayLine))return false;	// problem parsing display line, likely a typo in call, return error
 
-	Serial.println(TemplateLine);	//debug
+	dprintln(TemplateLine);	//debug
 	if (TemplateLine != "text") return false;		//the template line = text for display lines containing display text, so return error if this is not found
 
 	DisplayPntr[Index] = MnuLineName + ',' + TemplateLine + ',' + DisplayTitle + ',' + *TxtStr;	// change the entry in the display array
@@ -1626,7 +1635,7 @@ void DisplayClass::CursorBlink(boolean action)
 			//start the timer polling at intervals to blink cursor
 			BlinkTimerContext = Tmr.every(500, CursorBlinkIntRedirect, (void*)2);	// begin polling keypad, call KeyCheck at intervals of KeyPollRate. timer index = LS_PollContext
 			BlinkingCursorOn = true;	// set flag so we know we are using the soft interrupt
-										//Serial.println("timer for cursor blink started ");	//delete in future
+										//dprintln("timer for cursor blink started ");	//delete in future
 		}
 	}
 	else
@@ -1699,7 +1708,7 @@ boolean WriteStringArraySD(String Dname, int Dlines, String *Darray)
 	{
 		for (byte x = 0; x<Dlines; x++)
 		{
-			Serial.println(*(Darray + x));
+			dprintln(*(Darray + x));
 			SDfile.println(*(Darray + x));	//	write to end of file
 		}
 
@@ -1709,7 +1718,7 @@ boolean WriteStringArraySD(String Dname, int Dlines, String *Darray)
 	else
 	{
 		// if the file didn't open, print an error:
-		Serial.print(F("error opening SDFile="));	Serial.println(filename);//change to error log in future
+		dprint(F("error opening SDFile="));	dprintln(filename);//change to error log in future
 		return false;
 	}
 }
@@ -1744,7 +1753,7 @@ byte ReadStringArraySD(String Dname, byte Dlines)
 				}
 				else break;				//read next line after 
 			}
-			//Serial.println(DisplayBuf[x]);	//debug
+			//dprintln(DisplayBuf[x]);	//debug
 		}
 		SDfile.close();		//close the file
 		return x;			// return the number of lines read
@@ -1753,7 +1762,7 @@ byte ReadStringArraySD(String Dname, byte Dlines)
 	else
 	{
 		// file didn't exist or didn't open
-		Serial.print(F("error in ReadStringArraySD, did not find file or could not open it. SDFile="));	Serial.println(filename);//change to error log in future
+		dprint(F("error in ReadStringArraySD, did not find file or could not open it. SDFile="));	dprintln(filename);//change to error log in future
 		return 0;
 	}
 }
@@ -1769,8 +1778,8 @@ void KeyPoll(boolean start)
 		//start the timer polling at intervals
 		LS_curInput = NOKEY_ARV;	// set input value= no key being pressed
 		LS_PollContext = Tmr.every(LS_KeyPollRate, CheckKey, (void*)2);	// begin polling keypad, call KeyCheck at intervals of KeyPollRate. timer index = LS_PollContext
-		Serial.print("timer started ");	//delete in future
-		Serial.println(LS_KeyPollRate);
+		dprint("timer started ");	//delete in future
+		dprintln(LS_KeyPollRate);
 	}
 	else
 	{
@@ -1784,17 +1793,17 @@ void CheckKey(void* context)
 	// called by KeyTimer every KeyPollRate to check for if keys changed
 	LS_prevInput = LS_curInput;
 	LS_curInput = analogRead(LS_AnalogPin);	// read key value through analog pin
-											//Serial.print("previous input=");	//debug
-											//Serial.print(LS_prevInput);//debug
-											//Serial.print("; LS_curInput=");//debug
-											//Serial.println(LS_curInput);//debug
+											//dprint("previous input=");	//debug
+											//dprint(LS_prevInput);//debug
+											//dprint("; LS_curInput=");//debug
+											//dprintln(LS_curInput);//debug
 	x = LS_curInput - LS_prevInput;
 	if (abs(x) >= LS_Key_Threshold)
 	{
 		//current analog value is more than threshold away from previous value then there has been a change, check via debounce
 		//_debounce = true;
 		// use the timer to delay for KeyDebounceDelay.  After KeyDebounceDelay, GetKey will be called.
-		//Serial.println("setting up debounce");	//debug
+		//dprintln("setting up debounce");	//debug
 		LS_DebounceContext = Tmr.after(LS_KeyDebounceDelay, GetKey, (void*)5);
 	}
 	else
@@ -1810,15 +1819,15 @@ void GetKey(void* context)
 	// If valid, then read which key is pressed.
 	LS_prevInput = LS_curInput;
 	LS_curInput = analogRead(LS_AnalogPin);	// read key value through analog pin
-											//Serial.print("in getKey, after debounce period. previous and current read, abs(cur-prev): ");
-											//Serial.print(LS_prevInput); Serial.print(",  ");
-											//Serial.print(LS_curInput); Serial.print(",   ");
-											//Serial.println(abs(LS_curInput- LS_prevInput));
+											//dprint("in getKey, after debounce period. previous and current read, abs(cur-prev): ");
+											//dprint(LS_prevInput); dprint(",  ");
+											//dprint(LS_curInput); dprint(",   ");
+											//dprintln(abs(LS_curInput- LS_prevInput));
 	if (abs(LS_curInput - LS_prevInput) <= LS_Key_Threshold)
 	{
 		//Key press is confirmed because there is no substantive change in key input value after debounce delay
 		LS_KeyReady = true;		// flag to signal that key is ready to read.  Main loop checks for this.
-								//Serial.println("in getkey determining which key is pressed"); //debug
+								//dprintln("in getkey determining which key is pressed"); //debug
 								//determine which key is pressed from the voltage on the analog input
 		if (LS_curInput > UPKEY_ARV - LS_Key_Threshold && LS_curInput < UPKEY_ARV + LS_Key_Threshold) LS_curKey = UP_KEY;
 		else if (LS_curInput > DOWNKEY_ARV - LS_Key_Threshold && LS_curInput < DOWNKEY_ARV + LS_Key_Threshold) LS_curKey = DOWN_KEY;
@@ -1830,8 +1839,8 @@ void GetKey(void* context)
 			LS_curKey = NO_KEY;
 			LS_KeyReady = false;	// ignore key being released.  will catch the key when pressed.
 		}
-		//Serial.print("current key ="); //debug
-		//Serial.println(LS_curKey); //debug
+		//dprint("current key ="); //debug
+		//dprintln(LS_curKey); //debug
 	}
 	else
 	{
@@ -1867,7 +1876,7 @@ void SysTimePoll(boolean start)
 	{
 		//start the polling at for system time at interval 
 		SysTmPoleContext = Tmr.every(SysTmPoleFreq, GetSysTime, (void*)3);	// begin polling system timer (RTC), call GetSysTime at intervals of SysTmPoleFreq. timer index = SysTmPoleContext
-		Serial.println("RTC polling started ");
+		dprintln("RTC polling started ");
 	}
 	else
 	{
@@ -1885,22 +1894,22 @@ void GetSysTime(void* context)
 		// set up string of system time in 24 hr format
 		String tmpTime, strSnip, DayPart, MonthPart, YearPart;
 		strSnip = String(SysTm.Hour);	// hr to String
-										//Serial.print("hour="); Serial.print(strSnip);
+										//dprint("hour="); dprint(strSnip);
 		if (strSnip.length() == 1) strSnip = '0' + strSnip;	//hr needs to be 2 chr
 		SysTmStr = strSnip + ":";
 		strSnip = String(SysTm.Minute);
-		//Serial.print(" Min="); Serial.print(strSnip);		
+		//dprint(" Min="); dprint(strSnip);		
 		if (strSnip.length() == 1) strSnip = '0' + strSnip;	//min needs to be 2 chr		
 		SysTmStr = SysTmStr + strSnip + ":";	// add hrs
 		strSnip = String(SysTm.Second);
-		//Serial.print(" Sec="); Serial.println(strSnip);
+		//dprint(" Sec="); dprintln(strSnip);
 		if (strSnip.length() == 1) strSnip = '0' + strSnip;	//sec needs to be 2 chr
 		SysTmStr = SysTmStr + strSnip;	// add sec to complete system time string in 24 hr format as hh:mm:ss
 
 										//set up string of system date as mm/dd/yyyy
 		YearPart = String(tmYearToCalendar(SysTm.Year));	// year as yyyy
 		MonthPart = String(SysTm.Month);	// month to String
-										//Serial.print("Month="); Serial.print(strSnip);		
+										//dprint("Month="); dprint(strSnip);		
 		if (MonthPart.length() == 1) MonthPart = '0' + MonthPart;	//month needs to be 2 chr
 		SysDateStr = strSnip + "/";
 		DayPart = String(SysTm.Day);
@@ -1910,21 +1919,21 @@ void GetSysTime(void* context)
 		LogTm = YearPart + "-" + MonthPart + "-" + DayPart + "T" + SysTmStr;	//create the time string in the format 2016 - 07 - 27T00:00 : 00, used for error log and data log
 
 		sysDOWstr = Display.ProgMemLU(DisplayDOW, SysTm.Wday, 3); // DisplayDOW[SysTm.Wday];	//set day of week string. SysTm.Wday is int where 1=sunday
-																  //Serial.println ("SysTmStr=" + SysTmStr + ", SysDateStr=" + SysDateStr + ", SysDOW=" + sysDOWstr);
+																  //dprintln ("SysTmStr=" + SysTmStr + ", SysDateStr=" + SysDateStr + ", SysDOW=" + sysDOWstr);
 																  /*
-																  Serial.print("Ok, Time = ");
-																  Serial.print(SysTm.Hour);
+																  dprint("Ok, Time = ");
+																  dprint(SysTm.Hour);
 																  Serial.write(':');
-																  Serial.print(SysTm.Minute);
+																  dprint(SysTm.Minute);
 																  Serial.write(':');
-																  Serial.print(SysTm.Second);
-																  Serial.print(", Date (D/M/Y) = ");
-																  Serial.print(SysTm.Day);
+																  dprint(SysTm.Second);
+																  dprint(", Date (D/M/Y) = ");
+																  dprint(SysTm.Day);
 																  Serial.write('/');
-																  Serial.print(SysTm.Month);
+																  dprint(SysTm.Month);
 																  Serial.write('/');
-																  Serial.print(tmYearToCalendar(SysTm.Year));
-																  Serial.println();
+																  dprint(tmYearToCalendar(SysTm.Year));
+																  dprintln();
 																  */
 
 	}
@@ -1932,7 +1941,7 @@ void GetSysTime(void* context)
 	{
 		if (RTC.chipPresent())
 		{
-			Serial.println("The DS1307 is stopped.  Please run the SetTime");
+			dprintln("The DS1307 is stopped.  Please run the SetTime");
 		}
 		else
 		{
@@ -2003,8 +2012,8 @@ public:
 	String			Flow1Name;					// string name for the sensor.  e.g. upper pump
 	String			Flow2Name;					// string name for the sensor.  e.g. Lower pump
 	//boolean			IsOn;					// true if activly taking sensor readings else false
-	 int	Flow1Warn;							// set warning LED if flow less than this level
-	 int	Flow2Warn;							// set warning LED if flow rate below this level
+	int	Flow1Warn;							// set warning LED if flow less than this level
+	int	Flow2Warn;							// set warning LED if flow rate below this level
 	unsigned int	FlowValue1;					// flow meter 1 reading in l/min
 	unsigned int	FlowValue2;					// reading for meter 2
 	unsigned long flow1dur = 0;					//duty cycle for flowsensor 1, useful for adjusting sampling rate.
@@ -2200,28 +2209,28 @@ void	TempSensor::TempSensorInit(byte SN)
 	if (sensors.getAddress(Saddr, SN))	// Search the I2C bus for address
 	{
 		//if true, device address in set in Saddr else error
-		Serial.print("Found device number= ");	//debug
-		Serial.print(Snum);	//debug
-		Serial.print(" with address: "); //debug
+		dprint("Found device number= ");	//debug
+		dprint(Snum);	//debug
+		dprint(" with address: "); //debug
 										 //printAddress(tempDeviceAddress);
 		for (uint8_t i = 0; i < 8; i++)
 		{
-			if (Saddr[i] < 16) Serial.print("0");
-			Serial.print(Saddr[i], HEX);
+			if (Saddr[i] < 16) dprint("0");
+			dprint2(Saddr[i],HEX);
 		}
-		Serial.println();
+		dprintln();
 
-		Serial.print("Setting resolution to ");
-		Serial.println(TEMPERATURE_PRECISION, DEC);
+		dprint("Setting resolution to ");
+		dprintln2(TEMPERATURE_PRECISION, DEC);
 		sensors.setResolution(Saddr, TEMPERATURE_PRECISION);// set the resolution to TEMPERATURE_PRECISION bit (Each Dallas/Maxim device is capable of several different resolutions)
 
-		Serial.print("Resolution actually set to: ");
-		Serial.print(sensors.getResolution(Saddr), DEC);
-		Serial.println();
+		dprint("Resolution actually set to: ");
+		dprint2(sensors.getResolution(Saddr), DEC);
+		dprintln();
 	}
 	else
 	{
-		Serial.print("Error, did not find temp sensor address");	//debug
+		dprint("Error, did not find temp sensor address");	//debug
 																	//add error log entry here
 	}
 }
@@ -2289,8 +2298,8 @@ void	TempSensor::printAddress(void) 	// prints the address of temp sensor
 {
 	for (uint8_t i = 0; i < 8; i++)
 	{
-		if (Saddr[i] < 16) Serial.print("0");
-		Serial.print(Saddr[i], HEX);
+		if (Saddr[i] < 16) dprint("0");
+		dprint2(Saddr[i], HEX);
 	}
 }
 //----------------------------------------------------------------------
@@ -2518,7 +2527,7 @@ void RelayBoard::InitRelayBoard(boolean NO1, boolean NO2, boolean NO3, boolean N
 	digitalWrite(Relay4, true);	// turn off Relay 4
 
 
-								//Serial.println(F("Relay initialized."));
+	//dprintln(F("Relay initialized."));
 }
 //----------------------------------------------------------------------
 void	RelayBoard::RelaySet(byte RelayNum, boolean CircuitOn)
@@ -2716,7 +2725,7 @@ void setup()
 	
 	if (!SD.begin(53))
 	{
-		Serial.println(F("SD initialization failed!"));	// can't log because error log is on SD, so use display
+		dprintln(F("SD initialization failed!"));	// can't log because error log is on SD, so use display
 		lcd.print("failed, halt");
 		digitalWrite(RedLEDpin, 0);	//turn on Red LED.
 		while (true)
@@ -2966,6 +2975,7 @@ void setup()
 		}
 		digitalWrite(WaterLvlPowerPin, LOW);			// make sure power is off
 		WaterSens.TurnOn(true);	//global settings has water sensor on, so begin polling
+
 	}
 	//--------------------------------------------------------------
 
@@ -2985,10 +2995,15 @@ void setup()
 			Relay.InitRelayBoard(tmpBool, tmpBool, tmpBool, tmpBool);	//initialize all as normally open, so should all turn on
 			delay(SetUpDelay);
 		}
-			Relay.InitRelayBoard(false, false, false, false);	//initialize all as normally closed.
+		Relay.InitRelayBoard(false, false, false, false);	//initialize all as normally closed.
 
-			pump.pumpInit();	//set state variables for pump on/off
-			if(PumpMode != "Auto")
+		pump.pumpInit();	//set state variables for pump on/off
+		if (PumpMode =="Auto")
+		{
+			// in auto state, need to set value for prior level.  This will guarentee that pumps are turned on when water level sensor is read for first time during monitoring
+			WaterSens.PriorLvlRange = "none";
+		}
+		else
 		{
 			// if here, then need to set the pumps according to the value in PumpMode.  
 			//Auto is handled by the water level sensors.
@@ -3012,7 +3027,6 @@ void setup()
 			lcd.print("based on 'SetUp'");
 			delay(SetUpDelay);
 		}
-
 	}
 	//--------------------------------------------------------------
 // all sensors are set up and we are ready to start polling for keyboard use and sensor readings
@@ -3056,7 +3070,7 @@ void loop()
 			{
 				if (Display.DisplaySelection == "Status")
 				{
-					Serial.println(F("Main_UI-->Setup-->Status"));
+					dprintln(F("Main_UI-->Setup-->Status"));
 					Display.DisplaySetup(mReadWrite,mUseSD,"SysStat",9,DisplayBuf);	// put up the display array with the global variables
 				}
 				else
@@ -3117,7 +3131,7 @@ void loop()
 					rslt = Display.DisplayGetSetDate(&SysDateStr, "Date", true);	// replace the date string in display line named 'Date' in the SetRTC_up array
 					rslt = Display.DisplayGetSetTime(&SysTmStr, "Time", true);		// replace the time string in display line named 'Time'.  need to clip off sec
 					rslt = Display.DisplayGetSetDOW(&sysDOWstr, "DOW", true);		// replace the day of week string in display line named 'DOW'
-																					//Serial.println(F("main loop, clicked RCT")); for (int z=0; z<5; z++) {Serial.println(DisplayBuf[z]);}	//debug
+																					//dprintln(F("main loop, clicked RCT")); for (int z=0; z<5; z++) {dprintln(DisplayBuf[z]);}	//debug
 
 				}
 				else
@@ -3229,47 +3243,47 @@ void loop()
 			//"DOW,-a---a---U-D,--RTC DOW--,-Mon-Tue-U/D",
 			//"action,menu,---Action---,Update   Cancel"}
 
-			Serial.println(Display.DisplayLineName);
+			dprintln(Display.DisplayLineName);
 			if (Display.DisplayLineName == "action")
 			{
 				if (Display.DisplaySelection == "Update")
 				{
-					Serial.println(F("RTC_ui-->action-->update"));
+					dprintln(F("RTC_ui-->action-->update"));
 					//user wants to update system time with their changes made via display array 'RTC_ui'. Note that display 'RTC_ui' insures valid date, time, and DOW.  However, there is no check if DOW goes with date.
 					// will set the RTC and the soft interrupt will set the system time strings with the next read of RTC 
-					Serial.print(F("Free Scram =")); Serial.println(getFreeSram());
+					dprint(F("Free Scram =")); dprintln(getFreeSram());
 
 
 					String TmpSysTimeStr, TmpSysDateStr, tmpTime, tmpStr;
 					int	tmpVal;
-					//Serial.print("SysDateStr=" ); Serial.print(SysDateStr); Serial.print(", sysTimeStr="); Serial.print(SysTmStr); Serial.print("' SysDOW="); Serial.println(sysDOWstr);
-					//Serial.println("SysDateStr=" + SysDateStr + ", sysTimeStr=" + SysTmStr + "' SysDOW=" + sysDOWstr);
+					//dprint("SysDateStr=" ); dprint(SysDateStr); dprint(", sysTimeStr="); dprint(SysTmStr); dprint("' SysDOW="); dprintln(sysDOWstr);
+					//dprintln("SysDateStr=" + SysDateStr + ", sysTimeStr=" + SysTmStr + "' SysDOW=" + sysDOWstr);
 					Display.DisplayGetSetDate(&TmpSysDateStr, "Date", false);					// read the date string from display line named 'Date' in the SetRTC_up array
-																								//Serial.println("new SysDateStr=" + TmpSysDateStr);
+																								//dprintln("new SysDateStr=" + TmpSysDateStr);
 					tmpStr = TmpSysDateStr.substring(0, 2);		//get 2 digit month
-																//Serial.println("month from RTC_ui="+tmpStr);
+																//dprintln("month from RTC_ui="+tmpStr);
 					SysTm.Month = tmpStr.toInt();
-					//Serial.print("month int="); Serial.println(tmpVal);
+					//dprint("month int="); dprintln(tmpVal);
 					tmpStr = TmpSysDateStr.substring(3, 5);	//get 2 digit day
-															//Serial.println("day from RTC_ui="+tmpStr);
+															//dprintln("day from RTC_ui="+tmpStr);
 					SysTm.Day = tmpStr.toInt();
-					//Serial.print("Day int="); Serial.println(tmpStr.toInt());				
+					//dprint("Day int="); dprintln(tmpStr.toInt());				
 					tmpStr = TmpSysDateStr.substring(6);	//get 4 digit yr
-															//Serial.println("year from RTC_ui="+tmpStr);
+															//dprintln("year from RTC_ui="+tmpStr);
 					SysTm.Year = tmpStr.toInt() - 1970;		//year has offset from 1970	
-															//Serial.print("year int="); Serial.println(SysTm.Year);	
-															//Serial.print("Free Scram after date ="); Serial.println(getFreeSram());
+															//dprint("year int="); dprintln(SysTm.Year);	
+															//dprint("Free Scram after date ="); dprintln(getFreeSram());
 
 					Display.DisplayGetSetTime(&SysTmStr, "Time", false);					// read the time string from display line named 'Time'. 
-																							//Serial.println("new time string=" +SysTmStr);
+																							//dprintln("new time string=" +SysTmStr);
 					tmpStr = SysTmStr.substring(0, 2);										// get	2 digit Hr
-																							//Serial.println("hrs from RTC_ui=" + tmpStr);
+																							//dprintln("hrs from RTC_ui=" + tmpStr);
 					SysTm.Hour = tmpStr.toInt();
 					tmpStr = SysTmStr.substring(3, 5);										// get 2 digit min
-																							//Serial.println("min from RTC_ui=" + tmpStr);
+																							//dprintln("min from RTC_ui=" + tmpStr);
 					SysTm.Minute = tmpStr.toInt();
 					SysTm.Second = 0;
-					//Serial.print("Free Scram after time ="); Serial.println(getFreeSram());				
+					//dprint("Free Scram after time ="); dprintln(getFreeSram());				
 					// no seconds in RTC_ui						
 					Display.DisplayGetSetDOW(&sysDOWstr, "DOW", false);						// read the day of week string from display line named 'DOW'
 
@@ -3279,29 +3293,29 @@ void loop()
 						if (tmpStr == sysDOWstr) break;
 					}
 					//tmpVal++;		// increment because Sunday=1 and index for sunday=0
-					//Serial.print	("RTC_ui DOW index="); Serial.println(tmpVal);
+					//dprint	("RTC_ui DOW index="); dprintln(tmpVal);
 					SysTm.Wday = tmpVal;
-					//Serial.print("Free Scram after DOW ="); Serial.println(getFreeSram());
+					//dprint("Free Scram after DOW ="); dprintln(getFreeSram());
 
 
 					if (!RTC.write(SysTm))		//  write time to RTC, false if fails
 					{
 						ErrorLog("RTC write failed"," ",1);
 					}
-					//Serial.print("Free Scram after set time ="); Serial.println(getFreeSram());
+					//dprint("Free Scram after set time ="); dprintln(getFreeSram());
 
 				}
 				else
 				{
 					if (Display.DisplaySelection == "Cancel")
 					{
-						Serial.println(F("RTC_ui-->action-->Cancel"));
+						dprintln(F("RTC_ui-->action-->Cancel"));
 						Display.DisplaySetup(true, true, "Main_UI", 1, DisplayBuf); // user wants to cancel, so return to main-UI display array and display the first line, mode is read only.
 					}
 					else
 					{
 						ErrorLog("error processing setRTC_ui-->action: unrecognized DisplaySelection",Display.DisplaySelection,2);
-						Serial.print(F("error processing setRTC_ui-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);	//debug
+						dprint(F("error processing setRTC_ui-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);	//debug
 					}
 
 				}
@@ -3310,8 +3324,8 @@ void loop()
 			else
 			{
 				ErrorLog("error processing RTC_ui: unrecognized DisplayLineName", Display.DisplayLineName,2);
-				Serial.print(F("error processing setRTC_ui-->action: unrecognized DisplayLineName=")); Serial.println(Display.DisplayLineName);	//debug
-				Serial.print((F("length="))); Serial.println(Display.DisplayLineName.length());
+				dprint(F("error processing setRTC_ui-->action: unrecognized DisplayLineName=")); dprintln(Display.DisplayLineName);	//debug
+				dprint((F("length="))); dprintln(Display.DisplayLineName.length());
 
 			}
 			Display.DisplaySetup(false, true, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
@@ -3337,14 +3351,14 @@ void loop()
 				if (Display.DisplaySelection == "Edit_0")
 				{
 
-					Serial.println(F("TempSens-->Action-->Edit_0"));	//debug
+					dprintln(F("TempSens-->Action-->Edit_0"));	//debug
 					Display.DisplaySetup(mReadWrite, mUseSD, "TSens0", 8, DisplayBuf); // Put up first temp sens setup display array and display the first line
 				}
 				else
 				if (Display.DisplaySelection == "Edit_1")
 				{
 					// see comments for Edit_0
-					Serial.println(F("TempSens-->Action-->Edit_1"));	//debug
+					dprintln(F("TempSens-->Action-->Edit_1"));	//debug
 					Display.DisplaySetup(mReadWrite, mUseSD, "TSens1", 8, DisplayBuf); // Put up 2nd temp sens setup display array and display the first line
 				}
 				else
@@ -3927,7 +3941,7 @@ void loop()
 		dprint(F("error, unrecognized Display.DisplayName=")); dprintln(Display.DisplayName);
 	}	// end DisplayUserMadeSelection=true
 
-EndDisplayProcessing:	//target of goto. common exit for processing display array entries for object Display
+	EndDisplayProcessing:	//target of goto. common exit for processing display array entries for object Display
 
 	Display.DisplayUserMadeSelection = false;		// reset flag because we are processing the response
 	//END----------------------------------------------------------Processing User Selection -------------------------------------------------------
@@ -3936,7 +3950,7 @@ EndDisplayProcessing:	//target of goto. common exit for processing display array
 	//Begin--------------------------------------------------------Process Sensors in Monitoring Mode-----------------------------------------------
 	if (InMonitoringMode)
 	{
-		/* check the timers used for sensor management.  Each sensor will set a flag indicating if it is
+		/* check the flags set by timers used for sensor management.  Each sensor will set a flag indicating if it is
 		ready to be processed
 		*/
 
@@ -3944,41 +3958,43 @@ EndDisplayProcessing:	//target of goto. common exit for processing display array
 		if (TempSens0.TempSensReady)
 		{
 			TempSens0.TempSensReady = false;	//reset because we are processing this 
-			Serial.print("Temperature for pond (0) = "); Serial.println(TempSens0.TempF);
-			Serial.println(F("___________________________________________________________________"));
+			dprint("Temperature for pond (0) = "); dprintln(TempSens0.TempF);
+			dprintln(F("___________________________________________________________________"));
+			//log values for deg F and deg C.
+			MonitorLog(TempSens0.SensName, TempSens0.SensHandle, String(TempSens0.TempF), TempSens0.TempF, 0, "deg F", String(TempSens0.TempC), TempSens0.TempC, 0, "deg C");
 		}
 
 		if (TempSens1.TempSensReady)
 		{
 			TempSens1.TempSensReady = false;	//reset because we are processing this 
-			Serial.print("Temperature for internal sensor (1) = "); Serial.println(TempSens1.TempF);
-			Serial.println(F("___________________________________________________________________"));
-		}
-		/*
+			dprint("Temperature for internal sensor (1) = "); dprintln(TempSens1.TempF);
+			dprintln(F("___________________________________________________________________"));
+			MonitorLog(TempSens1.SensName, TempSens1.SensHandle, String(TempSens1.TempF), TempSens1.TempF, 0, "deg F", String(TempSens1.TempC), TempSens1.TempC, 0, "deg C");
 
+		}
 		//-------------------------------------------Water Level Sensor and pump relays----------
 		if (WaterSens.WaterLvlSensReady)
 		{
 			WaterSens.WaterLvlSensReady = false;	//reset ready flag
-													//debug
-			Serial.print(F(" water sensor reading="));
-			Serial.print(WaterSens.WaterLvl);
-			Serial.print(F(" WaterLvlRange="));
-			Serial.println(WaterSens.WaterLvlRange);
-			Serial.println(F("___________________________________________________________________"));
+			dprint(F(" water sensor reading=")); dprint(WaterSens.WaterLvl);
+			dprint(F(" WaterLvlRange=")); dprintln(WaterSens.WaterLvlRange);
+			dprintln(F("___________________________________________________________________"));
+
+			//log the value and water level interpretation 
+			MonitorLog("Water level sensor","",String(WaterSens.WaterLvl),WaterSens.WaterLvl,0,"",WaterSens.WaterLvlRange,0,0,"");
 
 			/*
 			Water sensor level range is used to turn on/off water pumps.  The water pump from the
 			bottom of the pond is attached to relay 1, and the skimmer pump attached to relay 2.
 			Connections for both are in the normally closed position, so that when the relay is 'on',
-			the pump is turned off.
+			the pump is turned off.  
 
 			When the filters get dirty or if there is a blockage in the outflow of the filter, the
 			water rises in the filter.
-			When the water level reaches the 'mid' value, we want to turn off the skimmer pump
+			When the water level reaches the 'mid' value, we want to turn off the upper skimmer pump
 			and resume it when water level is 'low'.
 			If the water continues to rise, then the water level reaches 'high', at which time
-			we want to turn off the bottom filter, and turn it on when the water level is mid.
+			we want to turn off the bottom filter pump, and turn it on when the water level is mid.
 			We will use WaterLvlRange and PriorLvlRange to determine if water level is increasing or decreasing
 
 			if the pump/filter circuit develops a serious leak and the water level drops below the sensor (level = 'none')
@@ -3987,7 +4003,7 @@ EndDisplayProcessing:	//target of goto. common exit for processing display array
 			We use the prior state and current state to determine if the water level is increasing or decreasing. The code should work if there is a
 			sudden change in level....e.g. bump the filter with a wave :-)
 			*/
-		/*
+
 			if ((WaterSens.WaterLvlRange == "none") && (WaterSens.PriorLvlRange == "none"))
 			{
 				//Starting with the assumption on no leak, so assume water level rising so we want both pumps circuits on
@@ -4053,23 +4069,23 @@ EndDisplayProcessing:	//target of goto. common exit for processing display array
 				// water level was up and now at none, so filter is emptying, which could be due to a big leak, so turn off both pumps to prevent draining the pond
 				Relay.RelaySet(1, false);
 				Relay.RelaySet(2, false);
-
-				//jf log error here
+				ErrorLog("Water level sensor suggests big leak, turning both pumps off","",3);	// log error, indicate most severe level			
 			}
-
 		}
-		*/
-
 		//-------------------------------------------Flow Sensors----------------------------
-		/*
 		if (FlowSens.FlowReadReady)
 		{
 			FlowSens.FlowReadReady = false;			// reset ready flag because wee are processing this
-			Serial.print(F("Flow Sensor 1 =")); Serial.print(FlowSens.FlowValue1); Serial.print(F(" l/min, duty cycle in ms=")); Serial.println(FlowSens.flow1dur);
-			Serial.print(F("Flow Sensor 2 =")); Serial.print(FlowSens.FlowValue2); Serial.print(F(" l/min, duty cycle in ms=")); Serial.println(FlowSens.flow2dur);
-			Serial.println(F("___________________________________________________________________"));
+			dprint(F("Flow Sensor 1 =")); dprint(FlowSens.FlowValue1); dprint(F(" l/min, duty cycle in ms=")); dprintln(FlowSens.flow1dur);
+			dprint(F("Flow Sensor 2 =")); dprint(FlowSens.FlowValue2); dprint(F(" l/min, duty cycle in ms=")); dprintln(FlowSens.flow2dur);
+			dprintln(F("___________________________________________________________________"));
+
+			//log values for both flow sensors.  log the flow as value 1 and low flow status as value 2
+			boolean	isLow;
+			if (FlowSens.FlowValue1 <= FlowSens.Flow1Warn) isLow = true; else isLow = false;
+			MonitorLog(FlowSens.Flow1Name, "",String(FlowSens.FlowValue1), 0, FlowSens.FlowValue1, "l/min",String(isLow),0,0,"low flow warning");
+			MonitorLog(FlowSens.Flow2Name, "", String(FlowSens.FlowValue2), 0, FlowSens.FlowValue2, "l/min", String(isLow), 0, 0, "low flow warning");
 		}
-		*/
 
 	}	// end if in monitoring mode
 	//END----------------------------------------------------------Process Sensors in Monitoring Mode-----------------------------------------------
