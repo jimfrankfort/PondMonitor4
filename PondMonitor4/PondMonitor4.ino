@@ -168,7 +168,7 @@ Error levels:
 	error level ?  other error levels may be needed in the future, but so far, only 1&2 are defined.
 */
 
-void ErrorLog(String error, int errLevel)
+void ErrorLog(String error,String param,int errLevel)
 {
 	// writes error to errorlog.  If not able to write to errorlog, on SD card, writes to monitor and turns on Red alarm.
 	// Note that only one file can be open at a time, so you have to close this one before opening another.
@@ -185,7 +185,7 @@ void ErrorLog(String error, int errLevel)
 		SDfile.print(F("<ErrorLog><LogDate>"));
 		SDfile.print(LogTm);
 		SDfile.print(F("</LogDate><LogEntry>"));
-		SDfile.print(error);
+		SDfile.print((error+" "+param));		//print error plus paramerer
 		SDfile.print(F("</LogEntry><LogLevel>"));
 		SDfile.print(errLevel);
 		SDfile.println(F("</LogLevel></ErrorLog></dataroot>"));
@@ -1936,7 +1936,7 @@ void GetSysTime(void* context)
 		}
 		else
 		{
-			ErrorLog("DS1307 read error!  Please check the circuitry.",1);
+			ErrorLog("DS1307 read error!  Please check the circuitry.","",1);
 		}
 	}
 }
@@ -2605,7 +2605,7 @@ boolean	RelayBoard::GetRelayState(byte RelayNum)
 		break;
 	default:
 		return 0;	// error.
-					//errorlog entry goes here   JF
+		ErrorLog("Error in GetRelayState, unrecognized realy num", String(RelayNum), 2);	// make error log entry
 		break;
 	}
 }
@@ -2656,7 +2656,7 @@ void H2Opumps::SetPump(byte PumpNum, boolean TurnOn)
 			{
 				// error, unexpected pump number
 				dprint(F("Error, unexpected pump number in H2Opumps::SetPump.  Pump requested was=")); dprintln(PumpNum);
-				ErrorLog("Error, unexpected pump number in H2Opumps::SetPump", 2);
+				ErrorLog("Error, unexpected pump number in H2Opumps::SetPump",String(PumpNum), 2);
 			}
 }
 
@@ -2771,7 +2771,7 @@ void setup()
 		if (tempInt1 != 2)
 		{
 			//error, expecting 2 temperature sensors, one for water and one for temp inside monitor enclosure.  Log the error.
-			ErrorLog("In setup, found less than 2 temp sensors", 1);	// make error log entry
+			ErrorLog("In setup, found less than 2 temp sensors", " ",1);	// make error log entry
 			lcd.print("error tmp sens");
 			delay(SetUpDelay);
 		}
@@ -3130,7 +3130,7 @@ void loop()
 
 				{
 					//error, should have identified the DisplaySelection
-					ErrorLog("error processing Main_UI, Setup: did not match DisplaySection", 2);
+					ErrorLog("error processing Main_UI, Setup: did not match DisplaySection", Display.DisplaySelection, 2);
 					dprint(F("error processing Main_UI-->Setup: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);	//debug
 				}
 
@@ -3187,7 +3187,7 @@ void loop()
 				}
 				else
 				{
-					ErrorLog("error processing Pumps-->action: unrecognized DisplaySelection",2);
+					ErrorLog("error processing Pumps-->action: unrecognized DisplaySelection",Display.DisplaySelection,2);
 					dprint(F("error processing Pumps-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);	
 				}
 			}
@@ -3212,7 +3212,7 @@ void loop()
 				}
 				else
 				{
-					ErrorLog("error processing PumpErr-->action: unrecognized DisplaySelection", 2);
+					ErrorLog("error processing PumpErr-->action: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 					dprint(F("error processing PumpErr-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 				}
 			}
@@ -3286,7 +3286,7 @@ void loop()
 
 					if (!RTC.write(SysTm))		//  write time to RTC, false if fails
 					{
-						ErrorLog("RTC write failed",1);
+						ErrorLog("RTC write failed"," ",1);
 					}
 					//Serial.print("Free Scram after set time ="); Serial.println(getFreeSram());
 
@@ -3300,7 +3300,7 @@ void loop()
 					}
 					else
 					{
-						ErrorLog("error processing setRTC_ui-->action: unrecognized DisplaySelection",2);
+						ErrorLog("error processing setRTC_ui-->action: unrecognized DisplaySelection",Display.DisplaySelection,2);
 						Serial.print(F("error processing setRTC_ui-->action: unrecognized DisplaySelection=")); Serial.println(Display.DisplaySelection);	//debug
 					}
 
@@ -3309,7 +3309,7 @@ void loop()
 			}
 			else
 			{
-				ErrorLog("error processing RTC_ui: unrecognized DisplayLineName",2);
+				ErrorLog("error processing RTC_ui: unrecognized DisplayLineName", Display.DisplayLineName,2);
 				Serial.print(F("error processing setRTC_ui-->action: unrecognized DisplayLineName=")); Serial.println(Display.DisplayLineName);	//debug
 				Serial.print((F("length="))); Serial.println(Display.DisplayLineName.length());
 
@@ -3361,7 +3361,7 @@ void loop()
 				}
 				else
 				{
-					ErrorLog("error processing TempSens-->action1: unrecognized DisplaySelection", 2);
+					ErrorLog("error processing TempSens-->action1: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 					dprint(F("error processing TempSens-->action1: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 				}
 			}
@@ -3399,7 +3399,7 @@ void loop()
 					}
 					else
 					{
-						ErrorLog("error processing TempRate-->action: unrecognized DisplaySelection", 2);
+						ErrorLog("error processing TempRate-->action: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 						dprint(F("error processing TempRate-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 					}
 			}
@@ -3470,7 +3470,7 @@ void loop()
 				}
 				else
 				{
-					ErrorLog("error processing TSens0-->action: unrecognized DisplaySelection",2);
+					ErrorLog("error processing TSens0-->action: unrecognized DisplaySelection",Display.DisplaySelection,2);
 					dprint(F("error processing TSens0-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 	
 				}
@@ -3543,7 +3543,7 @@ void loop()
 					}
 					else
 					{
-						ErrorLog("error processing TSens1-->action: unrecognized DisplaySelection", 2);
+						ErrorLog("error processing TSens1-->action: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 						dprint(F("error processing TSens1-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 
 					}
@@ -3583,7 +3583,7 @@ void loop()
 				}
 				else						
 				{
-					ErrorLog("error processing TempTst-->action: unrecognized DisplaySelection",2);
+					ErrorLog("error processing TempTst-->action: unrecognized DisplaySelection",Display.DisplaySelection,2);
 					dprint(F("error processing TempTst-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 
 				}
@@ -3620,7 +3620,7 @@ void loop()
 						}					
 						else
 						{
-							ErrorLog("error processing FlowSens-->action1: unrecognized DisplaySelection", 2);
+							ErrorLog("error processing FlowSens-->action1: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 							dprint(F("error processing FlowSens-->action1: unrecognized DisplaySelectionn=")); dprint(Display.DisplaySelection);
 						}
 			}
@@ -3666,7 +3666,7 @@ void loop()
 					}
 					else
 						{
-							ErrorLog("error processing FlowEdit-->menu: unrecognized DisplaySelection", 2);
+							ErrorLog("error processing FlowEdit-->menu: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 							dprint(F("error processing FlowEdit-->menu: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 						}
 			}
@@ -3708,7 +3708,7 @@ void loop()
 					}					
 					else
 					{
-						ErrorLog("error processing FlowTest-->action: unrecognized DisplaySelection", 2);
+						ErrorLog("error processing FlowTest-->action: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 						dprint(F("error processing FlowTest-->action:: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 					}
 			}
@@ -3733,7 +3733,7 @@ void loop()
 				}
 				else
 				{
-					ErrorLog("error processing TestErr-->action: unrecognized DisplaySelection", 2);
+					ErrorLog("error processing TestErr-->action: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 					dprint(F("error processing Pumps-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 				}
 			}
@@ -3770,7 +3770,7 @@ void loop()
 						}
 						else
 						{
-							ErrorLog("error processing H2OLvl-->action1: unrecognized DisplaySelection", 2);
+							ErrorLog("error processing H2OLvl-->action1: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 							dprint(F("error processing H2OLvl-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 
 						}
@@ -3818,7 +3818,7 @@ void loop()
 					}
 					else
 					{
-						ErrorLog("error processing H2OEdit-->action: unrecognized DisplaySelection", 2);
+						ErrorLog("error processing H2OEdit-->action: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 						dprint(F("error processing H2OEdit-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 					}
 			}
@@ -3858,7 +3858,7 @@ void loop()
 					}
 						else
 						{
-							ErrorLog("error processing H2OTest-->action: unrecognized DisplaySelection", 2);
+							ErrorLog("error processing H2OTest-->action: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 							dprint(F("error processing H2OTest-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 
 						}
@@ -3913,7 +3913,7 @@ void loop()
 					}
 					else
 					{
-						ErrorLog("error processing SysStat-->action: unrecognized DisplaySelection", 2);
+						ErrorLog("error processing SysStat-->action: unrecognized DisplaySelection",Display.DisplaySelection, 2);
 						dprint(F("error processing SysStat-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
 
 					}
@@ -3923,7 +3923,7 @@ void loop()
 
 			//jf add  processing for new screens here
 		
-		ErrorLog("error, unrecognized Display.DisplayName",2);	//should have recognized displayName
+		ErrorLog("error, unrecognized Display.DisplayName",Display.DisplayName,2);	//should have recognized displayName
 		dprint(F("error, unrecognized Display.DisplayName=")); dprintln(Display.DisplayName);
 	}	// end DisplayUserMadeSelection=true
 
