@@ -16,6 +16,7 @@
 #include <SD.h>				// library for SD card
 #include <OneWire.h>		// library for one-wire (I2C) bus used by temperature sensors
 #include <DallasTemperature.h>	// library for temperature sensors used
+#include <avr/wdt.h>		// watchdog timer used to reset the system after global parameters are changed.  Note this header is built into the compiler
 
 #define Debug			//general debug switch
 #ifdef Debug
@@ -2676,6 +2677,8 @@ void setup()
 	float tmpFloat;
 	boolean tmpBool;
 
+	wdt_disable();	// disable the watchdog timer.  It is used to reset the system when user updates global variables that impact the setup. Search code for wdt_disable() to see where we software reset.
+
 	// display splash screen before getting under way
 	lcd.begin(16, 2);	//unclear why, but this is needed every time else setCursor(0,1) doesn't work....probably scope related.
 	lcd.clear();
@@ -3862,6 +3865,61 @@ void loop()
 			}
 			goto EndDisplayProcessing; //exit processing Display
 		}	// end processing DisplayName== "H2OTest"
+
+		if (Display.DisplayName == "SysStat")
+		{
+			/*
+				SysStat.txt
+				text1,text,-Config System-,Start up status of sensors. Can be changed through main menu. (cont)
+				text2,text,-Config System-,Used to enable / disable sensor functions. (cont)
+				text3,text,-Config System-,note: WLvl=water level sensor, RelB= relay board.
+				Temp,U-D----------CCC,--Temp: On/Off--,U/D  Temp is On
+				Flow,U-D----------CCC,--Flow: On/Off--,U/D  Flow is On
+				Wlvl,U-D----------CCC,--WLvl: On/Off--,U/D  WLvl is On
+				Relay,U-D----------CCC,--RelB: On/Off--,U/D  RelB is On
+				Pumps,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto
+				action,menu,---Action---,Update  Cancel
+			*/
+			if (Display.DisplayLineName == "action")
+			{
+				if (Display.DisplaySelection == "Update")
+				{
+					dprintln(F("SysStat-->action-->Update"));	//debug
+					/*need to copy the contents of the display array named SysStat to SD card and reset the system.  We need to reset
+					because there is a lot of code in start up that depends on global settings.  e.g. TempSensorsOn.
+					To reset the system, we use the watchdog timer
+					*/
+					Display.DisplayWriteSD();	// writes the current info set by the user to SD
+					
+	
+					// tell the user we are going to reset the system
+					lcd.begin(16, 2);	//unclear why, but this is needed every time else setCursor(0,1) doesn't work....probably scope related.
+					lcd.clear();
+					lcd.setCursor(0, 0);
+					lcd.print("Reset needed to");
+					lcd.setCursor(0, 1);
+					lcd.print("take effect");
+
+					//use the watchdog timer to reset the system
+					wdt_disable();
+					wdt_enable(WDTO_4S);	//this will cause a reset if the watchdog timer is not re-triggered within 4 sec					
+					while (1) {}	//loop until reset
+				}
+				else
+					if (Display.DisplaySelection == "Cancel")
+					{
+						Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
+						goto EndDisplayProcessing; //exit processing Display	
+					}
+					else
+					{
+						ErrorLog("error processing SysStat-->action: unrecognized DisplaySelection", 2);
+						dprint(F("error processing SysStat-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);
+
+					}
+			}
+			goto EndDisplayProcessing; //exit processing Display
+		}	// end processing DisplayName== "SysStat"
 
 			//jf add  processing for new screens here
 		
