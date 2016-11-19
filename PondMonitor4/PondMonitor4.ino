@@ -28,6 +28,8 @@
 #else
 #define dprint(p)
 #define dprintln(p)
+#define dprint2(p,u)
+#define dprintln2(p,u)
 #endif // DEBUG
 
 
