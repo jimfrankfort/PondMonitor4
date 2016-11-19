@@ -32,7 +32,7 @@
 
 
 File SDfile;			// file object for accessing SD card
-Timer Tmr;				// timer object used for polling at timed intervals, used by keyboard routines and display class
+Timer Tmr;				// timer object used for polling at timed intervals, used by keyboard routines, display class, and LEDs class
 Timer SensTmr;			// timer object used for sensors (temp, flow, water level)
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);	// LCD display
 tmElements_t SysTm;		// system time, used by RTC and time logic
@@ -62,12 +62,6 @@ boolean	TransmitReadings = false;	// if true, then system will radio sensor read
 long MainLoopStartTime;
 long MainLoopEndTime;
 long MainLoopDurration;
-
-//variables for the green and red LEDs.  Green is used to indicate monitoring is going well, red indicates when there are errors.
-//LED's are wired to power with the ground wired to a digital pin.  The LED is turned on by bringing the pin low.  The digital pins can sink more current than source.
-#define RedLEDpin 44
-#define GreenLEDpin	45
-
 
 
 //----------------------------------------LS keypad related variables-----------------------------------------------
@@ -139,6 +133,116 @@ String ProgMemGetStr(const char* LUwhich, unsigned int LUlen)
 	return RetString;
 }
 
+//-----------------------------------------LED indicator variables and class ---------------------------------------
+class LEDs
+{
+
+	/*
+	Variables for the green and red LEDs.  Green is used to indicate monitoring is going well, red indicates when there are errors.
+	LED's are wired to power with the ground wired to a digital pin.  The LED is turned on by bringing the pin low.  The digital pins can sink more current than source.
+
+
+	Red LED used to report 3 levels of error.  Level 1 is minor and LED blinks slowly, level 2 is more serious and LED blinks rapidly, levle 3 is severe and LED stays on.
+	CurrentErrLvl is static and ranges from 0-3, where 0 = no error
+	If a called with an error level higher than current level, then set to new level else not changed.  This is because this routine can
+	be called from different parts of the code.
+	If called with err level 0, the error LED is turned off (reset error)
+	*/
+
+#define RedLEDpin 44
+#define GreenLEDpin	45
+#define lvl1delay	500		//blink rate for minor error
+#define lvl2delay	250		//blink rate for moderate error	/*
+private:
+	byte	ErrLEDlvl;			//value 1-3 to represent increasing severity of error, where 0=no error
+	boolean	GreenLEDstate;		// saves the state of the green LED, true=on
+	boolean	RedLEDstate;		// saves the state of the red LED, true is on
+	int		LEDtmrContext;		// index for timer class used to toggle red LED
+
+public:
+	void	LEDinit(void);		//initialize status LEDs
+	void	SetErrLED(byte level);	// sets the red LED to error level and adjusts blink rate
+	void	ClearErrLED(void);	// clears the error level and turns off red LED
+	void	SetGreenLED(boolean turnOn);	// used to turn green LED on/off
+	void	ErrLEDtoggle(void);	//called at interval to toggle the red LED based on error level
+}statusLEDs;
+//----------------------------------------------------------------------
+void	LEDs::LEDinit(void)
+{
+	// initialize status LEDs and initialize them to off
+	pinMode(RedLEDpin, OUTPUT);	// red LED attached here, 
+	digitalWrite(RedLEDpin, 1);	// turn off red LED
+	pinMode(GreenLEDpin, OUTPUT);
+	digitalWrite(GreenLEDpin, 1);
+	GreenLEDstate = false;
+	RedLEDstate = false;
+	ErrLEDlvl = 0;	// initialize to no error
+}
+//----------------------------------------------------------------------
+void	LEDs::SetErrLED(byte level)
+{
+	// sets the red LED to error level and adjusts blink rate
+	byte	tmpByte;
+	unsigned long int		tmpInt;
+	if (level > ErrLEDlvl)
+	{
+		//only do something if the error level is to be set at a level higher than it already is
+		if (level < 1 || level > 3)
+		{
+			//unexpected calling parameters, report error and do nothing
+			//can't log it because this routine called by error log, so will create a loop
+			dprint("unexpected parameter in SetErrLED="); dprintln(level);
+		}
+		else
+		{
+			// valid error level beign requested that is higher than current level
+			ErrLEDlvl = level;	//save the level for reference
+			RedLEDstate = true;
+			digitalWrite(RedLEDpin, 0);	//pin acts as sink, turning on LED
+
+			if (level == 3)
+			{
+				// error level = 3, so want to turn LED on, no flashing
+				if (level != 0) Tmr.stop(LEDtmrContext);	//turn timer off if it is already flashing	
+			}
+			else
+			{
+				if (level == 1) tmpInt = lvl1delay; else tmpInt = lvl2delay;
+				LEDtmrContext = Tmr.every(tmpInt, ErrLEDtoggleRedirect, (void*)2);	// call ErrLEDtoggleRedirect at intervals to flash red LED
+			}
+		}
+	}
+}
+//----------------------------------------------------------------------
+void	LEDs::ClearErrLED(void)
+{
+	// clears the error level and turns off red LED
+	digitalWrite(RedLEDpin, 1);	// brings pin high and turns off LED (no longer sinking)
+	RedLEDstate = false;
+	if (ErrLEDlvl == 1 || ErrLEDlvl == 2) Tmr.stop(LEDtmrContext);	//turn off timer if being used to flash
+	ErrLEDlvl = 0;	//0=no error
+}
+//----------------------------------------------------------------------
+void	LEDs::SetGreenLED(boolean turnOn)
+{
+	// used to turn green LED on/off
+	GreenLEDstate = turnOn;
+	digitalWrite(GreenLEDpin, !turnOn);	// need to invert because 0=turn on
+}
+//----------------------------------------------------------------------
+void	LEDs::ErrLEDtoggle(void)
+{	//called at interval to toggle the red LED based on error level
+	RedLEDstate = !RedLEDstate;
+	digitalWrite(RedLEDpin, RedLEDstate);
+}
+//----------------------------------------------------------------------
+void	ErrLEDtoggleRedirect(void * context)
+{
+	// called by timer class at intervals when red LED is flashing
+	statusLEDs.ErrLEDtoggle();	//use class to toggle.  routine called by timer class outside of object because compiler cannot find correct instance or I don't know how to tell it to do so :-)
+}
+//----------------------------------------------------------------------
+
 
 /* --------------------------------------------------- Log Routines --------------------------------------------------*/
 /*
@@ -197,19 +301,91 @@ void ErrorLog(String error,String param,int errLevel)
 	else
 	{ 
 		//error log couldn't be opened, this is a serious error but will continue processing
-		digitalWrite(RedLEDpin, 0);		//turn on Red LED
+		statusLEDs.SetErrLED(3);	//error level 3 is max, LED stays on
 		dprintln("Cannot open error log file");	//debug
 	}
 }
-
+//---------------------------------------------------------------------------
 void MonitorLog(String name, String ID, String valueStr, float valueFloat, int valueInt, String unitStr, String value1Str, float value1Float, int value1Int, String unit1Str)
 {
 	/*
 	code used by all sensors to make log entry of their readings.  This is general purpose to accomidate a name, ID, and u values.
 	The min required info is name, value, and units.  There is no completeness or validity checking done.  If there is an error with the SD card
-	this routine will log it.  The sensors will not be made aware of an SD card issue
+	this routine will log it.  The sensors will not be made aware of an SD card issue.
+	The log file name is "log/SensLog.xml" located on the SD card.  This routine assumes it already exists and the routine needs to append new entries.  The
+	XML structure of the file is as follows:
+
+		<?xml version="1.0" encoding="UTF-8"?>
+		<dataroot xmlns:od="urn:schemas-microsoft-com:officedata" generated="2016-11-19T08:49:49">
+			<MonitorLog>
+
+			//data from first value.  e.g. temp sens outputs in degF and degC.  First value is the most important.
+			<LogDate>2016-11-19T08:46:07</LogDate>
+			<SensName>name string 20 chr max</SensName>
+			<SensID>int of sensor ID, 0 if doesn't exist</SensID>
+			<valueString>string representation of the first value logged by the monitor.</valueString>
+			<valueFloat>if value being output is a float, then it goes here. if not used, 0 </valueFloat>
+			<valueInt>if value being output is an int, then it goes here. if not used, 0</valueInt>
+			<unitStr>units string, e.g. "l/min", if not used, " "</unitStr>
+
+			//data from second value, optional.   
+			<SensName1>name string 20 chr max</SensName1>
+			<SensID1>int of sensor ID, 0 if doesn't exist</SensID1>
+			<valueString1>string representation of the first value logged by the monitor.</valueString1>
+			<valueFloat1>if value being output is a float, then it goes here. if not used, 0 </valueFloat1>
+			<valueInt1>if value being output is an int, then it goes here. if not used, 0</valueInt1>
+			<unitStr1>units string, e.g. "l/min", if not used, " "</unitStr1>
+			</MonitorLog>
+		</dataroot>
+
+	What this routine needs to do is 
+	1) open the file for write
+	2) seek to the end and back the pointer up to just before "</dataroot>"
+	3) make the log entry using the format above for <MonitorLog>
+	4) close the file
+	note, if an error occurrs with the SD drive, let the SD code handle it
 	*/
+	SDfile = SD.open("log/SensLog.xml", FILE_WRITE);				// try to open the file
+	if (SDfile)
+	{
+		/*file opened ok if true
+		Sensor log is a XML file.  we want to open the file and insert the sensor data at the appropriate place, which is just before the xml to end the data root.
+		*/
+		SDfile.seek(SDfile.size() - 13);	//seek to just before '</dataroot>"
+		//make entry in XML and close file
+		SDfile.print(F("<MonitorLog><LogDate>"));
+		SDfile.print(LogTm);
+		SDfile.print(F("</LogDate><SensName>"));
+		SDfile.print(name);
+		SDfile.print(F("</SensName><SensID>"));
+		SDfile.print(ID);
+		SDfile.print(F("</SensID><valueString>"));
+		SDfile.print(valueStr);
+		SDfile.print(F("</valueString><valueFloat>"));
+		SDfile.print(valueFloat);
+		SDfile.print(F("</valueFloat><valueInt>"));
+		SDfile.print(valueInt);
+		SDfile.print(F("</valueInt><unitStr>"));
+		SDfile.print(unitStr);
+		SDfile.print(F("</unitStr><valueString1>"));
+		SDfile.print(value1Str);
+		SDfile.print(F("</valueString1><valueFloat1>"));
+		SDfile.print(value1Float);
+		SDfile.print(F("</valueFloat1><valueInt1>"));
+		SDfile.print(value1Int);
+		SDfile.print(F("</valueInt1><unitStr1>"));
+		SDfile.print(unit1Str);
+		SDfile.print(F("</unitStr1></MonitorLog>"));
+
+		SDfile.close();	// close the sensor log file
+	}
+	else
+	{
+		//error log couldn't be opened, this is a serious error but will continue processing
+		ErrorLog("Could not write to sensor log for sensor name=",name,3);
+	}
 }
+
 //--------------------------Display Class Definition and Display Related Global Variables -----------------------------
 
 //buffer used to  load/save string arrays used for Display object.  This is max 80 chr X 7 lines
@@ -2669,15 +2845,12 @@ void H2Opumps::SetPump(byte PumpNum, boolean TurnOn)
 			}
 }
 
-//-----------------------------------------LED indicator variables and class ---------------------------------------
+
 
 //--------------------------------------------------------Set Up --------------------------------------------------
 
 void setup()
 {
-	/*
-	
-	*/
 
 
 	String tempString;
@@ -2698,10 +2871,8 @@ void setup()
 	delay(SetUpDelay);	//delay 5 sec
 
 	// set up and test LEDs
-	pinMode(RedLEDpin, OUTPUT);	// red LED attached here, 
-	digitalWrite(RedLEDpin, 0);	// turn on red LED
-	pinMode(GreenLEDpin, OUTPUT);
-	digitalWrite(GreenLEDpin, 0);	// turn on green LED
+	statusLEDs.LEDinit();	//initialize and turn off
+
 	// tell user we are testing the LEDs
 	lcd.begin(16, 2);	//unclear why, but this is needed every time else setCursor(0,1) doesn't work....probably scope related.
 	lcd.clear();
@@ -2710,8 +2881,15 @@ void setup()
 	lcd.setCursor(0, 1);
 	lcd.print("Grn & Red are on");
 	delay(SetUpDelay);	//delay 5 sec
-	digitalWrite(RedLEDpin, 1);
-	digitalWrite(GreenLEDpin, 1);	// turn off both LEDs
+	statusLEDs.SetGreenLED(true);
+	statusLEDs.SetErrLED(1);	//slowly flashing red LED
+	delay(SetUpDelay);	//delay 5 sec
+	statusLEDs.SetErrLED(2);	// red LED flashing faster
+	delay(SetUpDelay);	//delay 5 sec
+	statusLEDs.SetErrLED(3);	//led on
+	delay(SetUpDelay);	//delay 5 sec
+	statusLEDs.ClearErrLED();	// clear error level and turn off RedLED
+	statusLEDs.SetGreenLED(false);	//turn off Green LED
 
 
 	//initialize the SD library	
@@ -2727,7 +2905,7 @@ void setup()
 	{
 		dprintln(F("SD initialization failed!"));	// can't log because error log is on SD, so use display
 		lcd.print("failed, halt");
-		digitalWrite(RedLEDpin, 0);	//turn on Red LED.
+		statusLEDs.SetErrLED(3);	//critical error, RED LED on
 		while (true)
 		{
 			// loop forever as SD failure is fatal.
@@ -3032,15 +3210,15 @@ void setup()
 // all sensors are set up and we are ready to start polling for keyboard use and sensor readings
 	KeyPoll(true);		// Begin polling the keypad S
 	SysTimePoll(true);	// begin to poll the Real Time Clock to get system time into SysTm
+	statusLEDs.SetGreenLED(true);	//turn on the green LED because we are monitoring
 
 	Display.DisplayStartStop(true);		// indicate that menu processing will occur. Tells main loop to pass key presses to the Menu
 	Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Prepare main-UI display array and display the first line, mode is read-write.
-
+//--------------------------------------------------------------------------------------------------------------------------------------------------
 }
 
 
 //-----------------------------------------------------------------main loop -----------------------------------------------------------------------
-//--------------------------------------------------------------------------------------------------------------------------------------------------
 
 void loop()
 {
@@ -3581,6 +3759,7 @@ void loop()
 				{
 					dprintln(F("TempTst-->action-->Begin_Test"));	//debug
 					InMonitoringMode = false;	// flag to end monitoring mode....stop reading and logging sensor readings
+					statusLEDs.SetGreenLED(false);
 					InTempSensTestMode = true;	// flag to start temp sens testing
 					TempSens0.TestMode(true);	// sets the soft interupts and state variables for both TempSens0 AND TempSens1 for testing
 
@@ -3591,6 +3770,7 @@ void loop()
 				{
 					dprintln(F("TempTst-->action-->End_Test"));	//debug
 					InMonitoringMode = true;		// flag to resume monitoring mode....resume reading and logging sensor readings
+					statusLEDs.SetGreenLED(true);
 					InTempSensTestMode = false;	// flag to end temp sens 0 testing
 					TempSens0.TestMode(false);		// sets the soft interupts and state variables for both TempSens0 AND TempSens1 for monitoring
 					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
@@ -3707,6 +3887,7 @@ void loop()
 				{
 					dprintln(F("FlowTest-->action-->Begin_Test"));	//debug
 					InMonitoringMode = false;	// flag to end monitoring mode....stop reading and logging sensor readings
+					statusLEDs.SetGreenLED(false);
 					InFlowSensTestMode = true;	// flag to tell system we are testing the flow sensors
 					FlowSens.SetReadFlowInterval(FlowTestingInterval);	// sets the testing interval, e.g. make reading every 5 sec
 					Display.DisplayLineRefresh("Flow1Value");	// show the display line for where the flow rate for flow sens1 will be displayed
@@ -3716,6 +3897,7 @@ void loop()
 					{
 						dprintln(F("FlowTest-->action-->End_Test"));	//debug
 						InMonitoringMode = true;		// flag to resume monitoring mode....resume reading and logging sensor readings
+						statusLEDs.SetGreenLED(true);
 						InFlowSensTestMode = false;		// flag to end flow sens testing
 						FlowSens.SetReadFlowInterval(FlowSens.GetReadFlowInterval());	//retrore soft interupt for when to read the flow sensors during monitoring
 						Display.DisplaySetup(mReadWrite,mUseSD,"FlowSens",2,DisplayBuf); // return to the entry screen for flow  sensor display array and display the first line
@@ -3857,6 +4039,7 @@ void loop()
 				{
 					dprintln(F("H2OTest-->action-->Begin_Test"));	//debug
 					InMonitoringMode = false;	// flag to end monitoring mode....stop reading and logging sensor readings
+					statusLEDs.SetGreenLED(false);
 					InWaterLvlTestMode = true;	// flag to tell system we are testing the water level sensor
 					WaterSens.SetPollInterval(WaterLvlTestingInterval);	//sampeling delay used for testing. e.g. read every 2 sed
 					Display.DisplayLineRefresh("H2OLvl");	// show the display line for where the water level value will be shown
@@ -3866,6 +4049,7 @@ void loop()
 					{
 						dprintln(F("H2OTest-->action-->End_Test"));	//debug
 						InMonitoringMode = true;		// flag to resume monitoring mode....resume reading and logging sensor readings
+						statusLEDs.SetGreenLED(true);
 						InWaterLvlTestMode = false;		// flag to end water level sensor testing
 						WaterSens.SetPollInterval(WaterSens.GetPollInterval());	//retrore soft interupt for when to read the sensor during monitoring
 						Display.DisplaySetup(mReadWrite, mUseSD, "H20Lvl", 4, DisplayBuf); // return to the entry screen for water  sensor display array and display the first line
