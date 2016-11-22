@@ -2516,7 +2516,7 @@ class WaterLvlSensor
 protected:
 #define WaterLvlPowerPin	23		// Digital pin 23 powers the moisture sensor.  Turning on only to read will prolong sensor life due to electroplating
 #define WaterLvlInput	1			// Analog input pin 
-#define WaterLvlSampleInterval 2000	// default sampling interval in ms
+#define WaterLvlSampleInterval 10000// default sampling interval in ms
 #define WaterLvlTestingInterval 2000 // sampeling interval when testing this sensor
 #define WaterLvlReadDelay	25		// number of ms to wait to read moisture sensor after turning on the power
 #define	WaterDfltNo	20				// Analog reading < means no water touching sensor
@@ -3290,7 +3290,7 @@ void loop()
 					if (WaterLvlSensorsOn)
 					{
 						dprintln(F("Main_UI-->Setup-->H20_Lvl_sensor"));
-						Display.DisplaySetup(mReadWrite, mUseSD, "H20Lvl", 4, DisplayBuf);	//put up display array for water level sensor
+						Display.DisplaySetup(mReadWrite, mUseSD, "H2OLvl", 4, DisplayBuf);	//put up display array for water level sensor
 					}
 					else
 					{
@@ -3938,10 +3938,10 @@ void loop()
 			goto EndDisplayProcessing; //exit processing pumps
 		}
 
-		if (Display.DisplayName == "H20Lvl")
+		if (Display.DisplayName == "H2OLvl")
 		{
 			/*
-			H20Lvl.txt
+			H2OLvl.txt
 			Text1,text,--H2O Sensor--,Functions related to water level sensor. (cont)
 			Text2,text,--H2O Sensor--,Detects multiple levels of water in filter and (cont)
 			Text3,text,--H2O Sensor--,turns on/off upper and lower pump accordingly.
@@ -4054,7 +4054,7 @@ void loop()
 						statusLEDs.SetGreenLED(true);
 						InWaterLvlTestMode = false;		// flag to end water level sensor testing
 						WaterSens.SetPollInterval(WaterSens.GetPollInterval());	//retrore soft interupt for when to read the sensor during monitoring
-						Display.DisplaySetup(mReadWrite, mUseSD, "H20Lvl", 4, DisplayBuf); // return to the entry screen for water  sensor display array and display the first line
+						Display.DisplaySetup(mReadWrite, mUseSD, "H2OLvl", 4, DisplayBuf); // return to the entry screen for water  sensor display array and display the first line
 					}
 						else
 						{

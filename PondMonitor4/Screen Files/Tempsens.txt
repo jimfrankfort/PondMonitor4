@@ -1,0 +1,2 @@
+Text1,text,---Tmp Sensor---,Functions related to temperature sensors
+action1,menu,---Edit/Test---,Sample_Rate  Edit_0   Edit_1   Test_0&1  Cancel

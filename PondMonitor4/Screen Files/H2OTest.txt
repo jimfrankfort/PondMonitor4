@@ -1,0 +1,7 @@
+Text1,text,--H2O Lvl Test--,Halts measurement and tests water level sensor (cont)
+Text2,text,--H2O Lvl Test--,Value should be between 0 and 1024. (cont)
+Text3,text,--H2O Lvl Test--,Determine reading for no level--> water not touching sensor (cont)
+Text4,text,--H2O Lvl Test--,Determine reading for mid level--> water mid filter (cont)
+Text5,text,--H2O Lvl Test--,Determine reading for high level--> water 1 inch from top outflow.
+H2OLvl,U-D--####------,-H2O Lvl Value-,U/D  #### l/min
+action,menu,---Action---,Begin_Test   End_Test

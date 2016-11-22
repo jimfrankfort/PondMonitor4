@@ -1,0 +1,3 @@
+text1,text,--Sample Rate--,Set sample rate for both temp sensors
+rate,U-D---------###-,--Sample Rate--,U/D   Every 060s  
+action,menu,---Action---,Update  Cancel

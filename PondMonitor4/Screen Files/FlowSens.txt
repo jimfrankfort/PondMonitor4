@@ -1,0 +1,2 @@
+Text1,text,--Flow Sensors--,Functions related to Flow sensors
+action1,menu,---Edit/Test---,Edit_setings  Test_sensors  Cancel
