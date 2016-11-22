@@ -2822,12 +2822,15 @@ void H2Opumps::pumpInit(void)
 //----------------------------------------------------------------------
 void H2Opumps::SetPump(byte PumpNum, boolean TurnOn)
 {
+	String tmpStr;
+	if (TurnOn) tmpStr = "On"; else tmpStr = "Off";	//strings for logging new state of pumps but only if there is a change.
 	if (PumpNum == uPump)
 	{
 		if (uPumpIsOn != TurnOn)
 		{
 			Relay.RelaySet(PumpNum, TurnOn);
 			uPumpIsOn = !uPumpIsOn;	//toggle state as is changing
+			MonitorLog("UpperPump", "0", tmpStr, 0, TurnOn, "n/a", "n/a", 0, 0, "n/a");
 		}
 	}
 	else
@@ -2837,6 +2840,7 @@ void H2Opumps::SetPump(byte PumpNum, boolean TurnOn)
 			{
 				Relay.RelaySet(PumpNum, TurnOn);
 				lPumpInOn = !lPumpInOn;	//toggle state as is changing
+				MonitorLog("LowerPump", "0", tmpStr, 0, TurnOn, "n/a", "n/a", 0, 0, "n/a");
 			}
 		}
 			else
