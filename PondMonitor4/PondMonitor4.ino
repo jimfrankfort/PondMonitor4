@@ -32,6 +32,16 @@
 #define dprintln2(p,u)
 #endif // DEBUG
 
+#define DebugDisplayClass			// debug switch for display class
+#ifdef DebugDisplayClass
+#define ddcprint(p)	Serial.print(p)
+#define ddcprintln(p)	Serial.println(p)
+#else
+#define ddcprint(p)
+#define ddcprintln(p)
+#endif // DEBUG display class
+
+
 
 File SDfile;			// file object for accessing SD card
 Timer Tmr;				// timer object used for polling at timed intervals, used by keyboard routines, display class, and LEDs class
@@ -44,7 +54,7 @@ String sysDOWstr;		// system day of week as string, 3 chr length.
 String LogTm;			// string of date and time used for log functions formatted for XML "2016-07-27T00:00:00"
 int SysTmPoleContext;	// ID of timer used to poll system time
 #define SysTmPoleFreq 1000	// time polling frequency
-#define SetUpDelay 1500		// delay used during setup section. It is the length of time to show user a message during system self test done during setup.
+#define SetUpDelay 750		// delay used during setup section. It is the length of time to show user a message during system self test done during setup.
 
 //---------------------------------------------------------------------------
 //			variables to control global state
@@ -843,7 +853,7 @@ void DisplayClass::DisplayLineSetup(String Mline)
 	DisplayLineName = Mline.substring(0, tmp1);		// get DisplayLineName
 	tmp2 = Mline.indexOf(',', tmp1 + 1);				// position of next comma
 	TemplateLine = Mline.substring(tmp1 + 1, tmp2);	// get TemplateLine
-													//dprintln("templateLine=|" + TemplateLine +"|");	
+	//dprintln("templateLine=|" + TemplateLine +"|");	
 	tmp3 = Mline.indexOf(',', tmp2 + 1);				// position of next comma
 	DisplayLineTitle = Mline.substring(tmp2 + 1, tmp3); // get DisplayLineTitle
 	DisplayLine = "                        " + Mline.substring(tmp3 + 1, Mline.length());	//snip out the Display options and pre-pend with spaces
@@ -880,6 +890,7 @@ void DisplayClass::DisplayLineSetup(String Mline)
 	{
 		DisplayMode = 1;
 		CursorBlink(false);		//turn off the cursor soft blink in case it is on
+		//dprintln(F("TemplateLine==menu"));
 	}
 	else
 		if (TemplateLine == "text")
@@ -939,7 +950,7 @@ void DisplayClass::DisplaySetup(boolean isReadOnly, boolean readFromSD, String m
 		if (ReadStringArraySD(mnuName, mnuLines) != mnuLines)	//read menuName from /Save folder of the SD card into DisplayBuf.  If successfull, then will read all the lines else error.
 		{
 			//if here then there was an error reading the file.
-			dprintln(F("Error reading menu in DisplayClass::DisplaySetup"));	//replace with errorlog
+			ddcprintln(F("Error reading menu in DisplayClass::DisplaySetup"));	//replace with errorlog
 		}
 		//dprint(F("UsingDisplayPntr")); 
 		//for (int z=0; z<mnuLines; z++) {dprintln(DisplayPntr[z]);	}	//debug
@@ -1130,7 +1141,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 			case (DOWN_KEY) :
 			{
 				// user wants to display DisplayLine 'below' the current DisplayLine where [MaxLines] is the Lowest
-				if (DisplayIndex != DisplayLineCnt)
+				if ((DisplayIndex != DisplayLineCnt) && (DisplayLineCnt != 1))
 				{
 					DisplayIndex++;	//Increment DisplayIndex
 					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
@@ -1160,35 +1171,44 @@ void DisplayClass::ProcessDisplay(int KeyID)
 			if (LS_curKey == RIGHT_KEY)
 			{
 				//user pressed right key, advance in template to chr to process (not = '-')
-				if (DisplayPos < DisplayStartPos + DisplayDisplayLen - 1) DisplayPos++; //move right one chr
-				while ((TemplateLine[DisplayPos - DisplayStartPos] == '-') && (DisplayPos < DisplayStartPos + DisplayDisplayLen - 1))
+				int tmpInt;
+				for (int x = 0; x < TemplateLine.length(); x++)	// look for next non "-" chr but limit in case user made error in formatting display line
 				{
-					DisplayPos++;	// continue to advance to non "-" chr and process below
-									//dprint(TemplateLine[DisplayPos-DisplayStartPos]);	//debug					
+					tmpInt = ((DisplayPos - DisplayStartPos) + 1) % TemplateLine.length();	// tmpInt is the next chr to test, modulo to wrap around
+					ddcprint(F("next position in TemplateLine to test=")); ddcprintln(tmpInt);	//debug
+					DisplayPos = tmpInt + DisplayStartPos;
+					if (TemplateLine[DisplayPos - DisplayStartPos] != '-') break;	// exit loop when we find the next non "-" chr
 				}
-				if (DisplayPos - DisplayStartPos >= TemplateLine.length())
-				{
-					DisplayPos = DisplayStartPos + TemplateLine.length() - 1;	//don't advance past then end of the templateLine, even if there is displayLine available
-				}
+
 				break;	//done processing LS_curKey
 			}
 
 			if (LS_curKey == LEFT_KEY)
 			{
 				//user pressed left key, back up in template to chr to process (not = '-')
+				/*
 				if (DisplayPos > DisplayStartPos) DisplayPos--; //move Lt one chr
 				while ((TemplateLine[DisplayPos - DisplayStartPos] == '-') && (DisplayPos > DisplayStartPos))
 				{
 					DisplayPos--;// continue to back up to non "-" chr and process below
 								 //dprint(TemplateLine.substring(DisplayPos-DisplayStartPos,DisplayPos-DisplayStartPos+1));	//debug						
 				}
+				*/
+				int tmpInt;
+				for (int x = 0; x < TemplateLine.length(); x++)	// look for next non "-" chr but limit in case user made error in formatting display line
+				{
+					tmpInt = ((DisplayPos - DisplayStartPos) -1) % TemplateLine.length();	// tmpInt is the next chr to test, modulo to wrap around
+					ddcprint(F("next position in TemplateLine to test=")); ddcprintln(tmpInt);	//debug
+					DisplayPos = tmpInt + DisplayStartPos;
+					if (TemplateLine[DisplayPos - DisplayStartPos] != '-') break;	// exit loop when we find the next non "-" chr
+				}
 				break;	//done processing LS_curKey
 			}
 
 			TempChar = TemplateLine[DisplayPos - DisplayStartPos];		//get the character under the cursor					
-																		//dprint("TempChar="); dprint(TempChar);dprint("  DisplayPos="); dprintln(DisplayPos);	//debug
+			ddcprint(F("TempChar=")); ddcprint(TempChar);ddcprint(F("  DisplayPos=")); ddcprintln(DisplayPos);	//debug
 
-																		//process the character under the DisplayPos cursor
+			//process the character under the DisplayPos cursor
 			if (TempChar == 'm' && !DisplayReadOnly)	// pointing to first digit of month in date, only process if display is read/write
 			{
 				//dprintln("processing TemplateChar=m");	//debug
@@ -1359,28 +1379,40 @@ void DisplayClass::ProcessDisplay(int KeyID)
 
 			if (TempChar == 'U')	// pointing to the Display Up selection
 			{
-				//dprintln("processing TemplateChar=U");	//debug
+				ddcprintln(F("processing TemplateChar=U"));	//debug
 				switch (tmpKey)
 				{
 				case (UP_KEY) :
 				{
 					// user wants to display DisplayLine 'above' the current DisplayLine where [0] is the highest
+					ddcprint(F("DisplayLineCnt=")); ddcprint(DisplayLineCnt); ddcprint(F(" DisplayIndex pre=")); ddcprint(DisplayIndex);
+					DisplayIndex = ((DisplayIndex--) % DisplayLineCnt);
+					ddcprint(F("DisplayIndex post=")); ddcprintln(DisplayIndex);
+					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
+					/*
 					if (DisplayIndex != 0)
 					{
 						DisplayIndex--;	//decrement DisplayIndex
 						DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayIndex]
 					}
+					*/
 					break;		// done processing 	switch (tmpKey)
 				}	// done with UP_KEY
 
 				case (DOWN_KEY) :
 				{
 					// user wants to display DisplayLine 'below' the current DisplayLine where [MaxLines] is the Lowest
-					if (DisplayIndex != DisplayLineCnt)
+					ddcprint(F("DisplayLineCnt=")); ddcprint(DisplayLineCnt); ddcprint(F(" DisplayIndex pre=")); ddcprint(DisplayIndex);
+					DisplayIndex = ((DisplayIndex++) % DisplayLineCnt);
+					ddcprint(F("DisplayIndex post=")); ddcprintln(DisplayIndex);
+					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
+					/*
+					if ((DisplayIndex != DisplayLineCnt) && (DisplayLineCnt != 1))
 					{
 						DisplayIndex++;	//Increment DisplayIndex
 						DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
 					}
+					*/
 					break;			// done processing 	switch (tmpKey)
 				}	// done with DOWN_KEY
 				}
@@ -1395,22 +1427,34 @@ void DisplayClass::ProcessDisplay(int KeyID)
 				case (UP_KEY) :
 				{
 					// user wants to display DisplayLine 'above' the current DisplayLine where [0] is the highest
+					ddcprint(F("DisplayLineCnt=")); ddcprint(DisplayLineCnt); ddcprint(F(" DisplayIndex pre=")); ddcprint(DisplayIndex);
+					DisplayIndex = ((DisplayIndex--) % DisplayLineCnt);
+					ddcprint(F("DisplayIndex post=")); ddcprintln(DisplayIndex);
+					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
+					/*
 					if (DisplayIndex != 0)
 					{
 						DisplayIndex--;	//decrement DisplayIndex
 						DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayIndex]
 					}
+					*/
 					break;		// done processing 	switch (tmpKey)
 				}	// done with UP_KEY
 
 				case (DOWN_KEY) :
 				{
 					// user wants to display DisplayLine 'below' the current DisplayLine where [MaxLines] is the Lowest
-					if (DisplayIndex != DisplayLineCnt)
+					ddcprint(F("DisplayLineCnt=")); ddcprint(DisplayLineCnt); ddcprint(F(" DisplayIndex pre=")); ddcprint(DisplayIndex);
+					DisplayIndex = ((DisplayIndex++) % DisplayLineCnt);
+					ddcprint(F("DisplayIndex post=")); ddcprintln(DisplayIndex);
+					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]					
+					/*
+					if ((DisplayIndex != DisplayLineCnt) && (DisplayLineCnt != 1))
 					{
 						DisplayIndex++;	//Increment DisplayIndex
 						DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
 					}
+					*/
 					break;			// done processing 	switch (tmpKey)
 				}	// done with DOWN_KE			
 
@@ -1552,7 +1596,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 			case (DOWN_KEY) :
 			{
 				// user wants to display DisplayLine 'below' the current DisplayLine where [MaxLines] is the Lowest
-				if (DisplayIndex != DisplayLineCnt)
+				if ((DisplayIndex != DisplayLineCnt)&&(DisplayLineCnt !=1))
 				{
 					DisplayIndex++;	//Increment DisplayIndex
 					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
@@ -1759,6 +1803,8 @@ boolean DisplayClass::DisplayGetSetChrs(String *ChrStr, String MnuLineName, bool
 
 																						// find and parse the display line
 	if (!FindAndParseDisplayLine(MnuLineName, &Index, &DisplayTitle, &TemplateLine, &DisplayLine))return false;	// problem parsing display line, likely a typo in call, return error
+	
+	ddcprint("len of TemplateLine="); ddcprintln(TemplateLine.length());
 	tmp1 = TemplateLine.indexOf('C');	//find where in the template the first chr of the string
 	tmp2 = TemplateLine.lastIndexOf('C');	//find in the template the last chr of the string
 
@@ -1766,18 +1812,19 @@ boolean DisplayClass::DisplayGetSetChrs(String *ChrStr, String MnuLineName, bool
 	if (set)
 	{
 		//user wants to set
-		//dprint("old displayline="); dprintln(DisplayLine);	//debug
-		//dprintln(Index);	//debug
+		ddcprint(F("old displayline=|")); ddcprint(DisplayLine); ddcprintln(F("|"));	//debug
+		ddcprintln(Index);	//debug
 		NewChrStr = *ChrStr;
-		DisplayLine = DisplayLine.substring(0, tmp1) + NewChrStr.substring(0, tmp2 - tmp1 + 1) + DisplayLine.substring(tmp2, DisplayLine.length());	//splice new String value into display line.  works because the chr position in the template matches the those in the display line
+		DisplayLine = DisplayLine.substring(0, tmp1) + NewChrStr.substring(0, tmp2 - tmp1 + 1) + DisplayLine.substring(tmp2+1, DisplayLine.length());	//splice new String value into display line.  works because the chr position in the template matches the those in the display line
 																																					//change the entry
 		DisplayPntr[Index] = MnuLineName + ',' + TemplateLine + ',' + DisplayTitle + ',' + DisplayLine;	// change the entry in the display array
-																										//dprintln ("new entry=" + DisplayPntr[Index]);	//debug
+		ddcprint(F("new displayline=|")); ddcprint(DisplayLine); ddcprintln(F("|"));	//debug
+		ddcprintln ("new entry=" + DisplayPntr[Index]);	//debug
 	}
 	else
 	{
 		*ChrStr = DisplayLine.substring(tmp1, tmp2 + 1);
-		//dprint("string="); dprintln(*ChrStr);	//debug
+		ddcprint("string="); ddcprintln(*ChrStr);	//debug
 
 	}
 
@@ -1859,7 +1906,9 @@ void DisplayClass::CursorBlinkTimeInt(void)
 boolean DisplayClass::DisplayWriteSD(void)
 {
 	// writes the current display array to a file on the SD card.  Uses DisplayPntr, DisplayName, and DisplayLineCnt.  file is named DisplayName and is overwritten.  returns true if successful
-	if (WriteStringArraySD(DisplayName, DisplayLineCnt, DisplayPntr)) return true; else return false;	//uses method external to Display class because of issues of class containing other classes in arduino's "simplified C/C++"
+	int tmpInt=DisplayLineCnt;
+	if (tmpInt == 1) tmpInt++;	//DisplayLineCnt starts @ 1 and DisplayIndex starts @ 0.  DisplayLineCnt was decremented for display arrays larger than 1 in DisplaySetUp.  Incrementing here insures that all lines are written.
+	if (WriteStringArraySD(DisplayName, tmpInt, DisplayPntr)) return true; else return false;	//uses method external to Display class because of issues of class containing other classes in arduino's "simplified C/C++"
 }
 //------------------------------------------
 void CursorBlinkIntRedirect(void* context)
@@ -1886,7 +1935,7 @@ boolean WriteStringArraySD(String Dname, int Dlines, String *Darray)
 	{
 		for (byte x = 0; x<Dlines; x++)
 		{
-			dprintln(*(Darray + x));
+			ddcprintln(*(Darray + x));
 			SDfile.println(*(Darray + x));	//	write to end of file
 		}
 
@@ -2696,13 +2745,13 @@ void RelayBoard::InitRelayBoard(boolean NO1, boolean NO2, boolean NO3, boolean N
 
 	//initializes and turns off relays.  Relays are activated when digital line is brought low..
 	pinMode(Relay1, OUTPUT);
-	digitalWrite(Relay1, true);	// turn off Relay 1
+	digitalWrite(Relay1, Relay1State);	// turn off Relay 1
 	pinMode(Relay2, OUTPUT);
-	digitalWrite(Relay2, true);	// turn off Relay 2
+	digitalWrite(Relay2, Relay2State);	// turn off Relay 2
 	pinMode(Relay3, OUTPUT);
-	digitalWrite(Relay3, true);	// turn off Relay 3
+	digitalWrite(Relay3, Relay3State);	// turn off Relay 3
 	pinMode(Relay4, OUTPUT);
-	digitalWrite(Relay4, true);	// turn off Relay 4
+	digitalWrite(Relay4, Relay4State);	// turn off Relay 4
 
 
 	//dprintln(F("Relay initialized."));
@@ -2886,12 +2935,12 @@ void setup()
 	lcd.print("testing LEDs");
 	lcd.setCursor(0, 1);
 	lcd.print("Grn & Red are on");
-	delay(SetUpDelay);	//delay 5 sec
+	//delay(SetUpDelay);	//delay 5 sec
 	statusLEDs.SetGreenLED(true);
-	statusLEDs.SetErrLED(1);	//slowly flashing red LED
-	delay(SetUpDelay);	//delay 5 sec
-	statusLEDs.SetErrLED(2);	// red LED flashing faster
-	delay(SetUpDelay);	//delay 5 sec
+	//statusLEDs.SetErrLED(1);	//slowly flashing red LED
+	//delay(SetUpDelay);	//delay 5 sec
+	//statusLEDs.SetErrLED(2);	// red LED flashing faster
+	//delay(SetUpDelay);	//delay 5 sec
 	statusLEDs.SetErrLED(3);	//led on
 	delay(SetUpDelay);	//delay 5 sec
 	statusLEDs.ClearErrLED();	// clear error level and turn off RedLED
@@ -3026,16 +3075,18 @@ void setup()
 		for (uint8_t i = 0; i < 4; i++)
 		{
 			if (TempSens0.Saddr[i] < 16) tempString += '0';
-			tempString += (TempSens0.Saddr[i], HEX);
+			tempString += String(TempSens0.Saddr[i], HEX);
 		}
+		dprint(F("lt half of address=")); dprintln(tempString);
 		Display.DisplayGetSetChrs(&tempString, "tempAddrLt", true);	// add lt part of address into display line
 		// Read the rt  4 Hex digits into a temp string
 		tempString = "";	// blank out string
 		for (uint8_t i = 4; i < 8; i++)
 		{
 			if (TempSens0.Saddr[i] < 16) tempString += '0';
-			tempString += (TempSens0.Saddr[i], HEX);
+			tempString += String(TempSens0.Saddr[i], HEX);
 		}
+		dprint(F("Rt half of address=")); dprintln(tempString);
 		Display.DisplayGetSetChrs(&tempString, "tempAddrRt", true);	// add rt part of address into display line
 
 		Display.DisplayGetSetChrs(&TempSens0.SensName, "tempName", false); //read the sensor name from the display into the class
@@ -3047,7 +3098,7 @@ void setup()
 		// set up the 2nd temperature sensor the exact same way as above
 		Display.DisplaySetup(false, true, "TSens1", 8, DisplayBuf); // get info from SD card related to temp sensor 0 and use it to populate class variables or read from class variables
 
-																	//temperature sensor initial on/off status is set above in initialization.  Therefore, the IsOn value must be written into "TSens1"
+		//temperature sensor initial on/off status is set above in initialization.  Therefore, the IsOn value must be written into "TSens1"
 		//if (TempSens1.IsOn) tempString = "Y"; else tempString = "N";
 		//Display.DisplayGetSetChrs(&tempString, "IsOn", true); // write the status of TempSensorsOn into the line on Display named "IsOn"
 
@@ -3064,7 +3115,7 @@ void setup()
 		for (uint8_t i = 0; i < 4; i++)
 		{
 			if (TempSens1.Saddr[i] < 16) tempString += '0';
-			tempString += (TempSens1.Saddr[i], HEX);
+			tempString += String(TempSens1.Saddr[i], HEX);
 		}
 		Display.DisplayGetSetChrs(&tempString, "tempAddrLt", mset);	// add lt part of address into display line
 																	// Read the rt  4 Hex digits into a temp string
@@ -3072,7 +3123,7 @@ void setup()
 		for (uint8_t i = 4; i < 8; i++)
 		{
 			if (TempSens1.Saddr[i] < 16) tempString += '0';
-			tempString += (TempSens1.Saddr[i], HEX);
+			tempString += String(TempSens1.Saddr[i], HEX);
 		}
 		Display.DisplayGetSetChrs(&tempString, "tempAddrRt", mset);	// add rt part of address into display line
 
@@ -3216,6 +3267,7 @@ void setup()
 // all sensors are set up and we are ready to start polling for keyboard use and sensor readings
 	KeyPoll(true);		// Begin polling the keypad S
 	SysTimePoll(true);	// begin to poll the Real Time Clock to get system time into SysTm
+	statusLEDs.ClearErrLED();		//turn off the red LED as it was tested above.
 	statusLEDs.SetGreenLED(true);	//turn on the green LED because we are monitoring
 
 	Display.DisplayStartStop(true);		// indicate that menu processing will occur. Tells main loop to pass key presses to the Menu
@@ -3642,7 +3694,7 @@ void loop()
 					for (uint8_t i = 0; i < 4; i++)
 					{
 						if (TempSens0.Saddr[i] < 16) tempString += '0';
-						tempString += (TempSens0.Saddr[i], HEX);
+						tempString += String(TempSens0.Saddr[i], HEX);
 					}
 					Display.DisplayGetSetChrs(&tempString, "tempAddrLt", mset);	// add lt part of address into display line
 	
@@ -3651,7 +3703,7 @@ void loop()
 					for (uint8_t i = 4; i < 8; i++)
 					{
 						if (TempSens0.Saddr[i] < 16) tempString += '0';
-						tempString += (TempSens0.Saddr[i], HEX);
+						tempString += String(TempSens0.Saddr[i], HEX);
 					}
 					Display.DisplayGetSetChrs(&tempString, "tempAddrRt", mset);	// add rt part of address into display line
 
@@ -3715,7 +3767,7 @@ void loop()
 					for (uint8_t i = 0; i < 4; i++)
 					{
 						if (TempSens1.Saddr[i] < 16) tempString += '0';
-						tempString += (TempSens1.Saddr[i], HEX);
+						tempString += String(TempSens1.Saddr[i], HEX);
 					}
 					Display.DisplayGetSetChrs(&tempString, "tempAddrLt", mset);	// add lt part of address into display line
 
@@ -3724,7 +3776,7 @@ void loop()
 					for (uint8_t i = 4; i < 8; i++)
 					{
 						if (TempSens1.Saddr[i] < 16) tempString += '0';
-						tempString += (TempSens1.Saddr[i], HEX);
+						tempString += String(TempSens1.Saddr[i], HEX);
 					}
 					Display.DisplayGetSetChrs(&tempString, "tempAddrRt", mset);	// add rt part of address into display line
 

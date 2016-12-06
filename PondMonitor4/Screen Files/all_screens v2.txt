@@ -20,7 +20,7 @@ action1,menu,---Edit/Test---,Sample_Rate  Edit_0   Edit_1   Test_0&1  Cancel
 	
 TempRate.txt
 text1,text,--Sample Rate--,Set sample rate for both temp sensors
-rate,U-D---------###-,--Sample Rate--,U/D   Every 060s  
+rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
 action,menu,---Action---,Update  Cancel
 
 
@@ -31,7 +31,7 @@ tempThreshL,U-D--###------,--Alrm Thresh--,U/D  036 deg F
 tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    ######## 
 tempAddrRt,U-D----CCCCCCCC-,----Addr_Rt----,U/D    ######## 
 tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp  
-handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
+handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ??????????
 action,menu,---Action---,Update   Cancel
 
 
@@ -42,7 +42,7 @@ tempThreshL,U-D--###------,--Alrm Thresh--,U/D  032 deg F
 tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    ######## 
 tempAddrRt,U-D----CCCCCCCC-,----Addr_Rt----,U/D    ######## 
 tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Device Tmp  
-handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ???????????
+handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ??????????
 action,menu,---Action---,Update   Cancel
 
 TempTst.txt
