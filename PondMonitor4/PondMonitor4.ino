@@ -963,7 +963,7 @@ void DisplayClass::DisplaySetup(boolean isReadOnly, boolean readFromSD, String m
 
 	DisplayName = mnuName;		// name of the Display array, returned when user makes a selection
 	DisplayIndex = 0;			// initialize index to DisplayLine within String array that is the Display
-	if (mnuLines == 1) DisplayLineCnt = 1; else DisplayLineCnt = mnuLines - 1; // max number of DisplayLines in the Display, starting with 1
+	DisplayLineCnt = mnuLines;	// max number of DisplayLines in the Display, starting with 1
 	DisplayReadOnly = isReadOnly;	// set to determine if this display array (deck) is read only or read/write.  Note applies only to display lines that take input.
 	DisplayUserMadeSelection = false;	// flag indicating Display not ready to be read.  If true, user made selection
 	DisplayLineSetup(*DisplayPntr);		 // extract and display DisplayLine[0]
@@ -1118,10 +1118,10 @@ void DisplayClass::ProcessDisplay(int KeyID)
 			{
 				// get the option that starts at DisplayPoss
 				DisplayOptStart = DisplayPos;
-				//dprintln("displayLine=|" + DisplayLine + "|");
+				ddcprintln("displayLine=|" + DisplayLine + "|");
 				DisplayOptEnd = (DisplayAdvToSpace(DisplayLine, DisplayPos));
-				//dprint("DisplayOptEnd="); dprintln(DisplayOptEnd);
-				//dprint("DisplaySelection=");dprint(DisplayLine.substring(DisplayOptStart,DisplayOptEnd));dprint("  DisplayStartPos=");dprint(DisplayStartPos);dprint("  DisplayOptStart=");dprint(DisplayOptStart);dprint("   DisplayOptEnd=");dprint(DisplayOptEnd);dprint("   selection length=");dprintln(DisplaySelection.length());
+				ddcprint("DisplayOptEnd="); ddcprintln(DisplayOptEnd);
+				ddcprint("DisplaySelection=");ddcprint(DisplayLine.substring(DisplayOptStart,DisplayOptEnd));ddcprint("  DisplayStartPos=");ddcprint(DisplayStartPos);ddcprint("  DisplayOptStart=");ddcprint(DisplayOptStart);ddcprint("   DisplayOptEnd=");ddcprint(DisplayOptEnd);ddcprint("   selection length=");ddcprintln(DisplaySelection.length());
 				DisplaySelection = DisplayLine.substring(DisplayOptStart, DisplayOptEnd);	// get the string of the option
 				DisplayUserMadeSelection = true;	//polling routine will see this and fetch results found in DisplayName, DisplayLineName, DisplaySelection
 				break;		// end processing SELECT_KEY
@@ -1130,23 +1130,18 @@ void DisplayClass::ProcessDisplay(int KeyID)
 			case (UP_KEY) :
 			{
 				// user wants to display DisplayLine 'above' the current DisplayLine where [0] is the highest
-				if (DisplayIndex != 0)
-				{
-					DisplayIndex--;	//decrement DisplayIndex
-					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayIndex]
-				}
+				DisplayIndex = (((DisplayIndex - 1) + DisplayLineCnt) % DisplayLineCnt);	// needed for correct wrap around at 0
+				DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
+				ddcprintln(F("KeyUp")); ddcprintln(DisplayBuf[DisplayIndex]);	//debug
 				break;
 			}	// done with UP_KEY
 
 			case (DOWN_KEY) :
 			{
 				// user wants to display DisplayLine 'below' the current DisplayLine where [MaxLines] is the Lowest
-				if ((DisplayIndex != DisplayLineCnt) && (DisplayLineCnt != 1))
-				{
-					DisplayIndex++;	//Increment DisplayIndex
-					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
-					dprintln("KeyDown"); dprintln(DisplayBuf[DisplayIndex]);	//debug
-				}
+				DisplayIndex = (DisplayIndex+1) % DisplayLineCnt;
+				DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
+				ddcprintln(F("KeyDown")); ddcprintln(DisplayBuf[DisplayIndex]);	//debug
 				break;
 			}	// done with DOWN_KEY
 			}	// end switch Ls_Key
@@ -1386,16 +1381,9 @@ void DisplayClass::ProcessDisplay(int KeyID)
 				{
 					// user wants to display DisplayLine 'above' the current DisplayLine where [0] is the highest
 					ddcprint(F("DisplayLineCnt=")); ddcprint(DisplayLineCnt); ddcprint(F(" DisplayIndex pre=")); ddcprint(DisplayIndex);
-					DisplayIndex = ((DisplayIndex--) % DisplayLineCnt);
+					DisplayIndex = (((DisplayIndex - 1) + DisplayLineCnt) % DisplayLineCnt);	// needed for correct wrap around at 0
 					ddcprint(F("DisplayIndex post=")); ddcprintln(DisplayIndex);
 					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
-					/*
-					if (DisplayIndex != 0)
-					{
-						DisplayIndex--;	//decrement DisplayIndex
-						DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayIndex]
-					}
-					*/
 					break;		// done processing 	switch (tmpKey)
 				}	// done with UP_KEY
 
@@ -1403,16 +1391,9 @@ void DisplayClass::ProcessDisplay(int KeyID)
 				{
 					// user wants to display DisplayLine 'below' the current DisplayLine where [MaxLines] is the Lowest
 					ddcprint(F("DisplayLineCnt=")); ddcprint(DisplayLineCnt); ddcprint(F(" DisplayIndex pre=")); ddcprint(DisplayIndex);
-					DisplayIndex = ((DisplayIndex++) % DisplayLineCnt);
+					DisplayIndex = ((DisplayIndex+1) % DisplayLineCnt);
 					ddcprint(F("DisplayIndex post=")); ddcprintln(DisplayIndex);
 					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
-					/*
-					if ((DisplayIndex != DisplayLineCnt) && (DisplayLineCnt != 1))
-					{
-						DisplayIndex++;	//Increment DisplayIndex
-						DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
-					}
-					*/
 					break;			// done processing 	switch (tmpKey)
 				}	// done with DOWN_KEY
 				}
@@ -1428,16 +1409,9 @@ void DisplayClass::ProcessDisplay(int KeyID)
 				{
 					// user wants to display DisplayLine 'above' the current DisplayLine where [0] is the highest
 					ddcprint(F("DisplayLineCnt=")); ddcprint(DisplayLineCnt); ddcprint(F(" DisplayIndex pre=")); ddcprint(DisplayIndex);
-					DisplayIndex = ((DisplayIndex--) % DisplayLineCnt);
+					DisplayIndex = (((DisplayIndex - 1) + DisplayLineCnt) % DisplayLineCnt);	// needed for correct wrap around at 0;
 					ddcprint(F("DisplayIndex post=")); ddcprintln(DisplayIndex);
 					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
-					/*
-					if (DisplayIndex != 0)
-					{
-						DisplayIndex--;	//decrement DisplayIndex
-						DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayIndex]
-					}
-					*/
 					break;		// done processing 	switch (tmpKey)
 				}	// done with UP_KEY
 
@@ -1445,16 +1419,9 @@ void DisplayClass::ProcessDisplay(int KeyID)
 				{
 					// user wants to display DisplayLine 'below' the current DisplayLine where [MaxLines] is the Lowest
 					ddcprint(F("DisplayLineCnt=")); ddcprint(DisplayLineCnt); ddcprint(F(" DisplayIndex pre=")); ddcprint(DisplayIndex);
-					DisplayIndex = ((DisplayIndex++) % DisplayLineCnt);
+					DisplayIndex = ((DisplayIndex+1) % DisplayLineCnt);
 					ddcprint(F("DisplayIndex post=")); ddcprintln(DisplayIndex);
 					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]					
-					/*
-					if ((DisplayIndex != DisplayLineCnt) && (DisplayLineCnt != 1))
-					{
-						DisplayIndex++;	//Increment DisplayIndex
-						DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
-					}
-					*/
 					break;			// done processing 	switch (tmpKey)
 				}	// done with DOWN_KE			
 
@@ -1482,6 +1449,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 		{
 			//int oldPos=DisplayPos;		// holds prior position of DisplayPos *Unused*
 			String newline;			// string to display
+			int tmpInt;
 
 			switch (LS_curKey)
 			{
@@ -1585,22 +1553,20 @@ void DisplayClass::ProcessDisplay(int KeyID)
 
 			case (UP_KEY) :
 			{
-				if (DisplayIndex != 0)
-				{
-					DisplayIndex--;	//decrement DisplayIndex
-					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayIndex]
-				}
+				ddcprint(F("displayLine= text, key is up, DisplayIndex before decrement=")); ddcprint(DisplayIndex);
+				DisplayIndex = (((DisplayIndex - 1)+ DisplayLineCnt)% DisplayLineCnt);	// needed for correct wrap around at 0
+				DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
+				ddcprint(F(" DisplayIndex after decrement=")); ddcprint(DisplayIndex); ddcprint(F(" DisplayLineCnt=")); ddcprintln(DisplayLineCnt);
 				break;
 			}	// done with UP_KEY
 
 			case (DOWN_KEY) :
 			{
 				// user wants to display DisplayLine 'below' the current DisplayLine where [MaxLines] is the Lowest
-				if ((DisplayIndex != DisplayLineCnt)&&(DisplayLineCnt !=1))
-				{
-					DisplayIndex++;	//Increment DisplayIndex
-					DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
-				}
+				ddcprint(F("displayLine= text, key is down, DisplayIndex before increment=")); ddcprint(DisplayIndex);
+				DisplayIndex = ((DisplayIndex+1) % DisplayLineCnt);
+				DisplayLineSetup(*(DisplayPntr + DisplayIndex)); // extract and display DisplayLine[DisplayLineCnt]
+				ddcprint(F(" DisplayIndex after increment=")); ddcprint(DisplayIndex); ddcprint(F(" DisplayLineCnt=")); ddcprintln(DisplayLineCnt);
 				break;
 			}	// done with DOWN_KEY
 			}	// end switch Ls_Key
@@ -1628,7 +1594,7 @@ boolean DisplayClass::FindAndParseDisplayLine(String MnuLineName, int *Idx, Stri
 	boolean tmpBool = false;
 	*Idx = 0;	//set index to 0 as calling routine doesn't need to
 				//find the string in the display array that has the name MnuLineName
-	for (int x = 1; x<DisplayLineCnt + 1; x++)	//DisplayLineCnt is protected within Display object and is the number of lines in the dispaly array
+	for (int x = 1; x<DisplayLineCnt; x++)	//DisplayLineCnt is protected within Display object and is the number of lines in the dispaly array
 	{
 		//dprintln(x);
 		if (DisplayPntr[*Idx].startsWith(MnuLineName))
@@ -1906,9 +1872,7 @@ void DisplayClass::CursorBlinkTimeInt(void)
 boolean DisplayClass::DisplayWriteSD(void)
 {
 	// writes the current display array to a file on the SD card.  Uses DisplayPntr, DisplayName, and DisplayLineCnt.  file is named DisplayName and is overwritten.  returns true if successful
-	int tmpInt=DisplayLineCnt;
-	if (tmpInt == 1) tmpInt++;	//DisplayLineCnt starts @ 1 and DisplayIndex starts @ 0.  DisplayLineCnt was decremented for display arrays larger than 1 in DisplaySetUp.  Incrementing here insures that all lines are written.
-	if (WriteStringArraySD(DisplayName, tmpInt, DisplayPntr)) return true; else return false;	//uses method external to Display class because of issues of class containing other classes in arduino's "simplified C/C++"
+	if (WriteStringArraySD(DisplayName, DisplayLineCnt, DisplayPntr)) return true; else return false;	//uses method external to Display class because of issues of class containing other classes in arduino's "simplified C/C++"
 }
 //------------------------------------------
 void CursorBlinkIntRedirect(void* context)
@@ -3317,7 +3281,7 @@ void loop()
 					{
 						//global for temperature sensor (set is SysStat.txt) is on, so can proceed, else error
 						dprintln(F("Main_UI-->SetUp-->Temp_sensor"));	//debug
-						Display.DisplaySetup(false, true, "tempsens", 4, DisplayBuf); // put up entry screen for temperature sensor display array and display the first line
+						Display.DisplaySetup(false, true, "tempsens", 2, DisplayBuf); // put up entry screen for temperature sensor display array and display the first line
 					}
 					else
 					{
