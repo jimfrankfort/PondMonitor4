@@ -1,4 +1,4 @@
-Text1,text,_H2O Sens Edit_,Used to set water level sensor parameters to control pumps (cont)
+Text1,text,-H2O Sens Edit-,Used to set water level sensor parameters to control pumps (cont)
 Text1,text,-H2O Sens Edit-,No H2O = water not touching sensor, both pumps on (cont)
 Text1,text,-H2O Sens Edit-,mid H2O = lower pump on, upper off (cont)
 Text1,text,-H2O Sens Edit-,high H20 = both pumps off.

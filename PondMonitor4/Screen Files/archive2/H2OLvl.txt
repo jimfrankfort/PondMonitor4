@@ -1,4 +1,4 @@
-Text1,text,__H2O Sensor__,Functions related to water level sensor. (cont)
+Text1,text,--H2O Sensor--,Functions related to water level sensor. (cont)
 Text2,text,--H2O Sensor--,Detects multiple levels of water in filter and (cont)
 Text3,text,--H2O Sensor--,turns on/off upper and lower pump accordingly.
 action1,menu,---Edit/Test---,Edit_setings  Test_sensor  Cancel

@@ -1,4 +1,4 @@
-Text1,text,___Tmp Sensor 1___,Parameter set up for temperature sensor 1
+Text1,text,---Tmp Sensor 1---,Parameter set up for temperature sensor 1
 tempThreshH,U-D--###------,--Alrm Thresh--,U/D  110 deg F
 tempThreshL,U-D--###------,--Alrm Thresh--,U/D  032 deg F
 tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    ######## 

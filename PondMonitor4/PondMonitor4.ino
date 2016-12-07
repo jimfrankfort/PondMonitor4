@@ -1731,7 +1731,7 @@ boolean DisplayClass::DisplayGetSetNum(String *NumStr, String MnuLineName, boole
 	// gets or sets a numeric value in the display line named MnuLineName in the current display array. If Set is true then sets value of DayStr else gets value
 	int Index = 0;
 	int	tmp1, tmp2;
-	String DisplayTitle, TemplateLine, DisplayLine;							// used to process the TemplateLine
+	String DisplayTitle, TemplateLine, DisplayLine,NewNumStr;							// used to process the TemplateLine
 
 																			// find and parse the display line
 	if (!FindAndParseDisplayLine(MnuLineName, &Index, &DisplayTitle, &TemplateLine, &DisplayLine))return false;	// problem parsing display line, likely a typo in call, return error
@@ -1742,10 +1742,11 @@ boolean DisplayClass::DisplayGetSetNum(String *NumStr, String MnuLineName, boole
 	if (set)
 	{
 		//user wants to set 
-		//dprint("numStr="); dprintln(*NumStr);	//debug
-		//dprint("old displayline="); dprintln(DisplayLine);	//debug
-		//dprintln(Index);	//debug
-		DisplayLine = DisplayLine.substring(0, tmp1) + *NumStr + DisplayLine.substring(tmp2+1, DisplayLine.length());	//splice new numeric value into display line.  works because the chr position in the template matches the those in the display line
+		ddcprint("numStr="); ddcprintln(*NumStr);	//debug
+		ddcprint("old displayline="); ddcprintln(DisplayLine);	//debug
+		ddcprintln(Index);	//debug
+		NewNumStr = *NumStr;
+		DisplayLine = DisplayLine.substring(0, tmp1) + NewNumStr.substring(0,tmp2-tmp1+1) + DisplayLine.substring(tmp2+1, DisplayLine.length());	//splice new numeric value into display line.  works because the chr position in the template matches the those in the display line
 																													//change the entry
 		DisplayPntr[Index] = MnuLineName + ',' + TemplateLine + ',' + DisplayTitle + ',' + DisplayLine;	// change the entry in the display array
 																										//dprintln ("new entry=" + DisplayPntr[Index]);	//debug
@@ -1753,7 +1754,7 @@ boolean DisplayClass::DisplayGetSetNum(String *NumStr, String MnuLineName, boole
 	else
 	{
 		*NumStr = DisplayLine.substring(tmp1, tmp2 + 1);
-		//dprintln("DOW string='" + *NumStr +"'");	//debug
+		ddcprintln("DOW string='" + *NumStr +"'");	//debug
 
 	}
 

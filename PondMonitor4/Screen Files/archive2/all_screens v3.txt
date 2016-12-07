@@ -1,0 +1,133 @@
+Main_UI.txt
+SetUp,menu,__Home Screen__,Status   Temp_sensor  Flow_sensor   H20_Lvl_sensor  Pumps  RTC
+
+SysStat.txt
+text1,text,-Config System-,Start up status of sensors. Can be changed through main menu. (cont)
+text2,text,-Config System-,Used to enable / disable sensor functions. (cont)
+text3,text,-Config System-,note: WLvl=water level sensor, RelB= relay board.
+Temp,U-D----------CCC,--Temp: On/Off--,U/D  Temp is On
+Flow,U-D----------CCC,--Flow: On/Off--,U/D  Flow is On 
+Wlvl,U-D----------CCC,--WLvl: On/Off--,U/D  WLvl is On 
+Relay,U-D----------CCC,--RelB: On/Off--,U/D  RelB is On 
+Pumps,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto
+action,menu,---Action---,Update  Cancel
+
+
+Tempsens.txt
+Text1,text,___Tmp Sensor___,Functions related to temperature sensors
+action1,menu,---Edit/Test---,Sample_Rate  Edit_0   Edit_1   Test_0&1  Cancel
+
+	
+TempRate.txt
+text1,text,__Sample Rate__,Set sample rate for both temp sensors
+rate,U-D---------###-,--Sample Rate--,U/D   Every 060s
+action,menu,---Action---,Update  Cancel
+
+
+TSens0.txt
+Text1,text,___Tmp Sensor 0___,Parameter set up for temperature sensor 0
+tempThreshH,U-D--###------,--Alrm Thresh--,U/D  090 deg F
+tempThreshL,U-D--###------,--Alrm Thresh--,U/D  036 deg F
+tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    ######## 
+tempAddrRt,U-D----CCCCCCCC-,----Addr_Rt----,U/D    ######## 
+tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp  
+handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ??????????
+action,menu,---Action---,Update   Cancel
+
+
+TSens1.txt
+Text1,text,___Tmp Sensor 1___,Parameter set up for temperature sensor 1
+tempThreshH,U-D--###------,--Alrm Thresh--,U/D  110 deg F
+tempThreshL,U-D--###------,--Alrm Thresh--,U/D  032 deg F
+tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    ######## 
+tempAddrRt,U-D----CCCCCCCC-,----Addr_Rt----,U/D    ######## 
+tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Device Tmp  
+handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ??????????
+action,menu,---Action---,Update   Cancel
+
+TempTst.txt
+Text1,text,__Tmp Test_0&1__,Halts measurement and tests both temp sensors (cont)
+Text2,text,--Tmp Test_0&1--,Temp 0 & 1 values on separate lines.
+tempValue0,U-D--###-#----,--Temp_0 Value--,U/D  ###.# F
+tempValue1,U-D--###-#----,--Temp_1 Value--,U/D  ###.# F
+action,menu,---Action---,Begin_Test   End_Test
+
+
+FlowSens.txt
+Text1,text,__Flow Sensors__,Functions related to Flow sensors
+action1,menu,---Edit/Test---,Edit_setings  Test_sensors  Cancel
+
+FlowEdit.txt
+Text1,text,_Flow Edit_,Used to set flow sensor parameters
+FlowName1,U-D--CCCCCCCCCC,-Flow1 Name str-,U/D  Upper Pump
+FlowWarn1,U-D--###------,-Low Flow1 Lvl @,U/D  ### l/min
+FlowName2,U-D--CCCCCCCCCC,-Flow2 Name str-,U/D  Lower Pump
+FlowWarn2,U-D--###------,-Low Flow2 Lvl @,U/D  ### l/min
+rate,U-D---------###-,--Sample Rate--,U/D   Every 300s  
+action,menu,---Action---,Save_Changes   Cancel
+
+FlowTest.txt
+Text1,text,___Flow Test___,Halts measurement and tests flow sensors 1 & 2 (cont)
+Text2,text,---Flow Test---,Each flow sensor has 2 outputs, flow in l/min and waveform duration. (cont)
+Text3,text,---Flow Test---,Sampling rate=5ms so duration should be <= 10 ms (Nyquist).
+Flow1Value,U-D--###,--Flow1 Value--,U/D  ### l/min
+Flow2Value,U-D--###,--Flow2 Value--,U/D  ### l/min
+Flow1Dur,U-D--##----,--Flow1Dur--,U/D  ## ms
+Flow2Dur,U-D--##----,--Flow2Dur--,U/D  ## ms
+action,menu,---Action---,Begin_Test   End_Test
+
+
+H2OLvl.txt
+Text1,text,__H2O Sensor__,Functions related to water level sensor. (cont)
+Text2,text,--H2O Sensor--,Detects multiple levels of water in filter and (cont)
+Text3,text,--H2O Sensor--,turns on/off upper and lower pump accordingly.
+action1,menu,---Edit/Test---,Edit_setings  Test_sensor  Cancel
+
+H2OTest.txt
+Text1,text,__H2O Lvl Test__,Halts measurement and tests water level sensor (cont)
+Text2,text,--H2O Lvl Test--,Value should be between 0 and 1024. (cont)
+Text3,text,--H2O Lvl Test--,Determine reading for no level--> water not touching sensor (cont)
+Text4,text,--H2O Lvl Test--,Determine reading for mid level--> water mid filter (cont)
+Text5,text,--H2O Lvl Test--,Determine reading for high level--> water 1 inch from top outflow.
+H2OLvl,U-D--####------,-H2O Lvl Value-,U/D  #### l/min
+action,menu,---Action---,Begin_Test   End_Test
+
+H2OEdit.txt
+Text1,text,_H2O Sens Edit_,Used to set water level sensor parameters to control pumps (cont)
+Text1,text,-H2O Sens Edit-,No H2O = water not touching sensor, both pumps on (cont)
+Text1,text,-H2O Sens Edit-,mid H2O = lower pump on, upper off (cont)
+Text1,text,-H2O Sens Edit-,high H20 = both pumps off.
+H2OLvlNo,U-D--####------,--No H2O--,U/D  #### =none
+H2OLvlLow,U-D--####------,--Mid H2O--,U/D  #### = Mid
+H2OLvlMid,U-D--####-------,--High H2O--,U/D  #### = High
+rate,U-D---------###-,--Sample Rate--,U/D   Every 300s  
+action,menu,---Action---,Update   Cancel
+
+ 
+
+Pumps.txt
+text1,text,__Pond Pumps__,Functions related to the water pumps, On/Off are static (cont)
+text2,text,--Pond Pumps--,Auto controls pumps by water level sensor.
+action,menu,--Set Pump Pwr--,Auto   Off   On  Cancel
+
+
+
+SetRTC.txt
+Text,text,___RTC Setup___,Used to view/update the date, time, and day of week settings
+Date,m--d----yy--U-D,---RTC Date---,01/01/2015  U/D
+Time,H--M---U-D,---RTC Time---,01:01  U/D
+DOW,a-------U-D,--RTC DOW--,Mon     U/D
+action,menu,---Action---,Update   Cancel
+
+
+TestErr.txt
+Text1,text,__Error__,The sensor you are trying to test is turned off by global setting. --cont--
+Text2,text,--Error--,To test, must first turn sensor on via Main_Menu -->Status.
+action,menu,Continue
+
+
+PumpErr.txt
+Text1,text,__Error__,Auto uses the water level sensor and it is turned off globally. --cont--
+Text2,text,--Error--,Turn it on before setting pumps to 'Auto' (Main --> Pumps). 
+action,menu,Continue
+

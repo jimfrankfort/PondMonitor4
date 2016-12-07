@@ -1,1 +1,1 @@
-SetUp,menu,--Home Screen--,Status   Temp_sensor  Flow_sensor   H20_Lvl_sensor  Pumps  RTC
+SetUp,menu,__Home Screen__,Status   Temp_sensor  Flow_sensor   H20_Lvl_sensor  Pumps  RTC

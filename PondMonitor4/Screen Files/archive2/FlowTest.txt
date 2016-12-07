@@ -1,4 +1,4 @@
-Text1,text,___Flow Test___,Halts measurement and tests flow sensors 1 & 2 (cont)
+Text1,text,---Flow Test---,Halts measurement and tests flow sensors 1 & 2 (cont)
 Text2,text,---Flow Test---,Each flow sensor has 2 outputs, flow in l/min and waveform duration. (cont)
 Text3,text,---Flow Test---,Sampling rate=5ms so duration should be <= 10 ms (Nyquist).
 Flow1Value,U-D--###,--Flow1 Value--,U/D  ### l/min

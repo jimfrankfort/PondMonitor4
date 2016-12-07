@@ -1,3 +1,3 @@
-Text1,text,__Error__,Auto uses the water level sensor and it is turned off globally. --cont--
+Text1,text,--Error--,Auto uses the water level sensor and it is turned off globally. --cont--
 Text2,text,--Error--,Turn it on before setting pumps to 'Auto' (Main --> Pumps). 
 action,menu,Continue

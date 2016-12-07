@@ -1,4 +1,4 @@
-Text1,text,__Tmp Test_0&1__,Halts measurement and tests both temp sensors (cont)
+Text1,text,--Tmp Test_0&1--,Halts measurement and tests both temp sensors (cont)
 Text2,text,--Tmp Test_0&1--,Temp 0 & 1 values on separate lines.
 tempValue0,U-D--###-#----,--Temp_0 Value--,U/D  ###.# F
 tempValue1,U-D--###-#----,--Temp_1 Value--,U/D  ###.# F

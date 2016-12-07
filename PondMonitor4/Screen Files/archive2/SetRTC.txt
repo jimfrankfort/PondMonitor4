@@ -1,4 +1,4 @@
-Text,text,___RTC Setup___,Used to view/update the date, time, and day of week settings
+Text,text,---RTC Setup---,Used to view/update the date, time, and day of week settings
 Date,m--d----yy--U-D,---RTC Date---,01/01/2015  U/D
 Time,H--M---U-D,---RTC Time---,01:01  U/D
 DOW,a-------U-D,--RTC DOW--,Mon     U/D
