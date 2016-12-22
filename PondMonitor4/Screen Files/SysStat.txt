@@ -1,8 +1,8 @@
 text1,text,_Config System_,Start up status of sensors. Can be changed through main menu. (cont)
 text2,text,-Config System-,Used to enable / disable sensor functions. (cont)
 text3,text,-Config System-,note: WLvl=water level sensor, RelB= relay board.
-Temp,U-D----------CCC,--Temp: On/Off--,U/D  Temp is On
-Flow,U-D----------CCC,--Flow: On/Off--,U/D  Flow is On 
+Temp,U-D----------CCC,--Temp: On/Off--,U/D  Temp is On 
+Flow,U-D----------CCC,--Flow: On/Off--,U/D  Flow is On  
 Wlvl,U-D----------CCC,--WLvl: On/Off--,U/D  WLvl is On 
 Relay,U-D----------CCC,--RelB: On/Off--,U/D  RelB is On 
 Pumps,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto

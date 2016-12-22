@@ -415,7 +415,7 @@ const char DisplayYear[] PROGMEM = { "0123456789" };	// year will advance 1 chr 
 const char DisplayHour[] PROGMEM = { "000102030405060708091011121314151617181920212223" };	//hour will advance 2 chr at a time
 const char DisplayMin[] PROGMEM = { "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960" };	// Min will advance 2 chr at a time
 const char DisplayNum[] PROGMEM = { "0123456789" };	// numbers advance 1 chr at a time
-const char DisplayChar[] PROGMEM = { "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_$%&" };	//alpha numeric characters will advance 1 at a time
+const char DisplayChar[] PROGMEM = { " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_$%&" };	//alpha numeric characters will advance 1 at a time
 const char DisplayDOW[] PROGMEM = { "MonTueWedThuFriSatSun" };
 
 class DisplayClass
@@ -707,7 +707,7 @@ void DisplayClass::DowEntry(boolean increment)
 	}
 	else
 	{
-		if (idx > 0) { idx--; }
+		if ((idx > 0) { idx--; }
 		else { idx = 6; }
 	}
 
@@ -796,23 +796,18 @@ void DisplayClass::ChrEntry(boolean increment)
 	String tmpStr, ChrStr;
 	tmpStr = DisplayLine.substring(DisplayPos, DisplayPos + 1);
 
-	while ((tmpStr != ProgMemLU(DisplayChar, idx, 1)) && (idx<64)) idx++; //scan the string array for the day of the week under DisplayPos
-																		  //scan the string array for the chr under DisplayPos
-																		  /*for (idx=0, idx<64, idx++)
-																		  {
-																		  tmpStr1= ProgMemLU(DisplayChar,idx,1);
-																		  if (tmpStr1==tmpStr) {break;}		//exit when we find it
-																		  }
-																		  */
+	while ((tmpStr != ProgMemLU(DisplayChar, idx, 1)) && (idx<68)) idx++; //scan the string array for the character under DisplayPos and advance by 1 with wraparound
+
 	if (increment)
 	{
-		if (idx <63) { idx++; }
+		if (idx <68) { idx+=1; }
 		else { idx = 0; }
+		ddcprint(F("inc, idx=")); ddcprint(idx);
 	}
 	else
 	{
-		if (idx > 0) { idx--; }
-		else { idx = 63; }
+		if (idx == 0) { idx = 68; } else { idx -= 1; }
+		ddcprint(F("dec, idx=")); ddcprint(idx);
 	}
 
 
@@ -2953,14 +2948,16 @@ void setup()
 	*/
 	Display.DisplaySetup(mReadOnly, mUseSD, "SysStat", 9, DisplayBuf); // get settings from SysStat.txt  Will use the Display class to retrieve the values.  User can modify these via UI
 	Display.DisplayGetSetChrs(&tempString, "Temp", mget);	//get the string from the SysStat file for the line pertaining to the temp sensors
-	if (tempString == "On") TempSensorsOn = true; else TempSensorsOn = false;	
+	if (tempString == "On") { TempSensorsOn = true; } else {TempSensorsOn = false;}
 	Display.DisplayGetSetChrs(&tempString, "Flow", mget);	//get 
-	if (tempString == "On") FlowSensorsOn = true; else FlowSensorsOn = false;
+	if (tempString == "On") { FlowSensorsOn = true; } else { FlowSensorsOn = false; }
 	Display.DisplayGetSetChrs(&tempString, "Wlvl", mget);
-	if (tempString = "On") WaterLvlSensorsOn = true; else WaterLvlSensorsOn = false;
+	dprint(F("tempString for Wlvl=")); dprintln(tempString);
+	if (tempString == "On") { WaterLvlSensorsOn = true; } else { WaterLvlSensorsOn = false; }
 	Display.DisplayGetSetChrs(&tempString, "Relay", mget);
-	if (tempString = "On") RelayBoardOn = true; else RelayBoardOn = false;
+	if (tempString == "On") { RelayBoardOn = true; } else { RelayBoardOn = false; }
 	Display.DisplayGetSetChrs(&PumpMode, "Pumps", mget);	//PumpMode = On, Off, or Auto
+	dprint(F("WaterLvlSensorsOn=")); dprintln(WaterLvlSensorsOn);
 
 	// look up variables for the sensors that are on
 	if (TempSensorsOn)
@@ -3324,15 +3321,16 @@ void loop()
 				if (Display.DisplaySelection == "RTC")
 				{
 					boolean	rslt;
-					Display.DisplaySetup(mReadWrite, mUseSD, "SetRTC_ui", 5, DisplayBuf); // Prepare SetRTC_ui display array, display the first line, mode is read/write, retrieve SetRTC_ui from the SD card
+					dprintln(F("Main_UI-->Setup-->RTC"));
+					Display.DisplaySetup(mReadWrite, mUseSD, "SetRTC", 5, DisplayBuf); // Prepare SetRTC display array, display the first line, mode is read/write, retrieve SetRTC from the SD card
 
 					//RTC is read every second and sets strings for day of week, time, and date
-					//modify the display lines in the SetRTC_ui array
+					//modify the display lines in the SetRTC array
 
 					rslt = Display.DisplayGetSetDate(&SysDateStr, "Date", true);	// replace the date string in display line named 'Date' in the SetRTC_up array
 					rslt = Display.DisplayGetSetTime(&SysTmStr, "Time", true);		// replace the time string in display line named 'Time'.  need to clip off sec
 					rslt = Display.DisplayGetSetDOW(&sysDOWstr, "DOW", true);		// replace the day of week string in display line named 'DOW'
-																					//dprintln(F("main loop, clicked RCT")); for (int z=0; z<5; z++) {dprintln(DisplayBuf[z]);}	//debug
+					dprintln(F("main loop, clicked RCT")); for (int z=0; z<5; z++) {dprintln(DisplayBuf[z]);}	//debug
 
 				}
 				else
@@ -3434,10 +3432,10 @@ void loop()
 			goto EndDisplayProcessing;
 		}
 
-		if (Display.DisplayName == "SetRTC_ui")
+		if (Display.DisplayName == "SetRTC")
 		{
 
-			//if here then processing SetRTC_ui[5]=
+			//if here then processing SetRTC.txt
 			//{"Text,text,---RTC Setup---,Used to view/update the date, time, and day of week settings",
 			//"Date,m--d----yy--U-D,---RTC Date---,08/01/2015  U/D",
 			//"Time,H--M---U-D,---RTC Time---,13:27  U/D",
@@ -3515,8 +3513,8 @@ void loop()
 					}
 					else
 					{
-						ErrorLog("error processing setRTC_ui-->action: unrecognized DisplaySelection",Display.DisplaySelection,2);
-						dprint(F("error processing setRTC_ui-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);	//debug
+						ErrorLog("error processing SetRTC-->action: unrecognized DisplaySelection",Display.DisplaySelection,2);
+						dprint(F("error processing SetRTC-->action: unrecognized DisplaySelection=")); dprintln(Display.DisplaySelection);	//debug
 					}
 
 				}
@@ -3525,7 +3523,7 @@ void loop()
 			else
 			{
 				ErrorLog("error processing RTC_ui: unrecognized DisplayLineName", Display.DisplayLineName,2);
-				dprint(F("error processing setRTC_ui-->action: unrecognized DisplayLineName=")); dprintln(Display.DisplayLineName);	//debug
+				dprint(F("error processing SetRTC-->action: unrecognized DisplayLineName=")); dprintln(Display.DisplayLineName);	//debug
 				dprint((F("length="))); dprintln(Display.DisplayLineName.length());
 
 			}
@@ -4117,7 +4115,7 @@ void loop()
 					lcd.begin(16, 2);	//unclear why, but this is needed every time else setCursor(0,1) doesn't work....probably scope related.
 					lcd.clear();
 					lcd.setCursor(0, 0);
-					lcd.print("Reset needed to");
+					lcd.print("Rebooting now to");
 					lcd.setCursor(0, 1);
 					lcd.print("take effect");
 

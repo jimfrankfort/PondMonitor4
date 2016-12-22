@@ -1,5 +1,5 @@
 Text,text,___RTC Setup___,Used to view/update the date, time, and day of week settings
-Date,m--d----yy--U-D,---RTC Date---,01/01/2015  U/D
-Time,H--M---U-D,---RTC Time---,01:01  U/D
-DOW,a-------U-D,--RTC DOW--,Mon     U/D
+Date,U-D--m--d----yy,---RTC Date---,U/D  01/01/2015
+Time,U-D---H--M,---RTC Time---,U/D   01:01
+DOW,U-D----a---,--RTC DOW--,U/D    Mon 
 action,menu,---Action---,Update   Cancel

@@ -5,8 +5,8 @@ SysStat.txt
 text1,text,_Config System_,Start up status of sensors. Can be changed through main menu. (cont)
 text2,text,-Config System-,Used to enable / disable sensor functions. (cont)
 text3,text,-Config System-,note: WLvl=water level sensor, RelB= relay board.
-Temp,U-D----------CCC,--Temp: On/Off--,U/D  Temp is On
-Flow,U-D----------CCC,--Flow: On/Off--,U/D  Flow is On 
+Temp,U-D----------CCC,--Temp: On/Off--,U/D  Temp is On 
+Flow,U-D----------CCC,--Flow: On/Off--,U/D  Flow is On  
 Wlvl,U-D----------CCC,--WLvl: On/Off--,U/D  WLvl is On 
 Relay,U-D----------CCC,--RelB: On/Off--,U/D  RelB is On 
 Pumps,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto
@@ -111,23 +111,22 @@ text2,text,--Pond Pumps--,Auto controls pumps by water level sensor.
 action,menu,--Set Pump Pwr--,Auto   Off   On  Cancel
 
 
-
 SetRTC.txt
 Text,text,___RTC Setup___,Used to view/update the date, time, and day of week settings
-Date,m--d----yy--U-D,---RTC Date---,01/01/2015  U/D
-Time,H--M---U-D,---RTC Time---,01:01  U/D
-DOW,a-------U-D,--RTC DOW--,Mon     U/D
+Date,U-D--m--d----yy,---RTC Date---,U/D  01/01/2015
+Time,U-D---H--M,---RTC Time---,U/D   01:01
+DOW,U-D----a---,--RTC DOW--,U/D    Mon 
 action,menu,---Action---,Update   Cancel
 
 
 TestErr.txt
 Text1,text,__Error__,The sensor you are trying to test is turned off by global setting. --cont--
 Text2,text,--Error--,To test, must first turn sensor on via Main_Menu -->Status.
-action,menu,Continue
+action,menu,---Action---,Continue
 
 
 PumpErr.txt
 Text1,text,__Error__,Auto uses the water level sensor and it is turned off globally. --cont--
 Text2,text,--Error--,Turn it on before setting pumps to 'Auto' (Main --> Pumps). 
-action,menu,Continue
+action,menu,---Action---,Continue
 
