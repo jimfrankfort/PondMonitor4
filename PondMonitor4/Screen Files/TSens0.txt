@@ -3,6 +3,6 @@ tempThreshH,U-D--###------,--Alrm Thresh--,U/D  090 deg F
 tempThreshL,U-D--###------,--Alrm Thresh--,U/D  036 deg F
 tempAddrLt,U-D----CCCCCCCC-,----Addr_Lt----,U/D    ######## 
 tempAddrRt,U-D----CCCCCCCC-,----Addr_Rt----,U/D    ######## 
-tempName,U-D--CCCCCCCCCC,----Name Str----,U/D  Pond Temp  
-handle,U-D--CCCCCCCCCC,---Cloud Str---,U/D  ??????????
+tempName,U-D--CCCCCCCCCCC,----Name Str----,U/D  Pond Temp  
+handle,U-D--CCCCCCCCCCC,---Cloud Str---,U/D  ???????????
 action,menu,---Action---,Update   Cancel

@@ -32,7 +32,7 @@
 #define dprintln2(p,u)
 #endif // DEBUG
 
-#define DebugDisplayClass			// debug switch for display class
+//#define DebugDisplayClass			// debug switch for display class
 #ifdef DebugDisplayClass
 #define ddcprint(p)	Serial.print(p)
 #define ddcprintln(p)	Serial.println(p)
@@ -707,7 +707,7 @@ void DisplayClass::DowEntry(boolean increment)
 	}
 	else
 	{
-		if ((idx > 0) { idx--; }
+		if (idx > 0) { idx--; }
 		else { idx = 6; }
 	}
 
@@ -796,17 +796,22 @@ void DisplayClass::ChrEntry(boolean increment)
 	String tmpStr, ChrStr;
 	tmpStr = DisplayLine.substring(DisplayPos, DisplayPos + 1);
 
-	while ((tmpStr != ProgMemLU(DisplayChar, idx, 1)) && (idx<68)) idx++; //scan the string array for the character under DisplayPos and advance by 1 with wraparound
+	while ((tmpStr != ProgMemLU(DisplayChar, idx, 1)) && (idx<=68)) idx+=1; //scan the string array for the character under DisplayPos and advance by 1 with wraparound
+	ddcprint(F("lookup idx=")); ddcprint(idx); ddcprint(F(", "));
 
 	if (increment)
 	{
-		if (idx <68) { idx+=1; }
+		if (idx < 68) { idx+=1; }
 		else { idx = 0; }
 		ddcprint(F("inc, idx=")); ddcprint(idx);
 	}
 	else
 	{
-		if (idx == 0) { idx = 68; } else { idx -= 1; }
+		if (idx == 0) { idx = 67; } 
+		else 
+		{ --idx; 
+		ddcprint(F("decrementing idx "));
+		}
 		ddcprint(F("dec, idx=")); ddcprint(idx);
 	}
 
@@ -1430,12 +1435,14 @@ void DisplayClass::ProcessDisplay(int KeyID)
 			if (UpdateDisplayArray)
 			{
 				String tmpStr = DisplayLine;
+				ddcprint(F("@1438, DisplayLine=")); ddcprintln(tmpStr);
 				tmpStr.trim();	//trim the whitespace added as padding prior to updating the display array
+				ddcprint(F("@1438, trimmed DisplayLine=")); ddcprintln(tmpStr);
 								//change the entry			
 								//dprint("Before= |");dprint(DisplayPntr[DisplayIndex]);dprintln("|");	//debug					
 								//DisplayLine.trim();	//trim leading and trailing whitespace					
 				DisplayPntr[DisplayIndex] = DisplayLineName + ',' + TemplateLine + ',' + DisplayLineTitle + ',' + tmpStr;	// change the entry in the display array
-																															//dprint("After=  |");dprint(DisplayPntr[DisplayIndex]);dprintln("|");	//debug
+				ddcprint("After=  |");ddcprint(DisplayPntr[DisplayIndex]);ddcprintln("|");	//debug
 			}
 			break;
 		} // end case DisplayOption = 2 
@@ -1726,7 +1733,7 @@ boolean DisplayClass::DisplayGetSetNum(String *NumStr, String MnuLineName, boole
 	// gets or sets a numeric value in the display line named MnuLineName in the current display array. If Set is true then sets value of DayStr else gets value
 	int Index = 0;
 	int	tmp1, tmp2;
-	String DisplayTitle, TemplateLine, DisplayLine,NewNumStr;							// used to process the TemplateLine
+	String DisplayTitle, TemplateLine, DisplayLine, NewNumStr, OldNumStr;						// used to process the TemplateLine
 
 																			// find and parse the display line
 	if (!FindAndParseDisplayLine(MnuLineName, &Index, &DisplayTitle, &TemplateLine, &DisplayLine))return false;	// problem parsing display line, likely a typo in call, return error
@@ -1748,7 +1755,9 @@ boolean DisplayClass::DisplayGetSetNum(String *NumStr, String MnuLineName, boole
 	}
 	else
 	{
-		*NumStr = DisplayLine.substring(tmp1, tmp2 + 1);
+		OldNumStr = DisplayLine.substring(tmp1, tmp2 + 1);
+		OldNumStr.trim();	//remove leading and trailing spaces
+		*NumStr = OldNumStr;
 		ddcprintln("DOW string='" + *NumStr +"'");	//debug
 
 	}
@@ -1761,7 +1770,7 @@ boolean DisplayClass::DisplayGetSetChrs(String *ChrStr, String MnuLineName, bool
 	// gets or sets a character string in the display line named MnuLineName in the current display array. If Set is true then sets value of ChrStr else gets value
 	int Index = 0;
 	int	tmp1, tmp2;
-	String DisplayTitle, TemplateLine, DisplayLine, NewChrStr;							// used to process the TemplateLine
+	String DisplayTitle, TemplateLine, DisplayLine, NewChrStr, OldChrStr;							// used to process the TemplateLine
 
 																						// find and parse the display line
 	if (!FindAndParseDisplayLine(MnuLineName, &Index, &DisplayTitle, &TemplateLine, &DisplayLine))return false;	// problem parsing display line, likely a typo in call, return error
@@ -1785,7 +1794,9 @@ boolean DisplayClass::DisplayGetSetChrs(String *ChrStr, String MnuLineName, bool
 	}
 	else
 	{
-		*ChrStr = DisplayLine.substring(tmp1, tmp2 + 1);
+		OldChrStr= DisplayLine.substring(tmp1, tmp2 + 1);
+		OldChrStr.trim();	// remove any leading/traling spaces
+		*ChrStr = OldChrStr;
 		ddcprint("string="); ddcprintln(*ChrStr);	//debug
 
 	}
@@ -1853,14 +1864,15 @@ void DisplayClass::CursorBlinkTimeInt(void)
 	if (Blank)
 	{
 		//blank out the character under DisplayPos
-		BlinkLine = DisplayLine.substring(DisplayStartPos, DisplayPos) + BlinkCursor + DisplayLine.substring(DisplayPos + 1, DisplayEndPos);
+		BlinkLine = DisplayLine.substring(DisplayStartPos, DisplayPos) + BlinkCursor + DisplayLine.substring(DisplayPos + 1, DisplayEndPos+1);
 		lcd.print(BlinkLine);
 		Blank = false;
 	}
 	else
 	{
 		// do not blank out the character under DisplayPos
-		lcd.print(DisplayLine.substring(DisplayStartPos, DisplayEndPos));
+		lcd.print(DisplayLine.substring(DisplayStartPos, DisplayEndPos + 1));
+		ddcprint(F("@1871 unblinked displayline=")); ddcprintln(DisplayLine.substring(DisplayStartPos, DisplayEndPos+1));
 		Blank = true;
 	}
 }
@@ -2369,7 +2381,7 @@ public:
 
 
 	void	TempSensorInit(byte SN);	//used like constructor because constructor syntax was not working ;-(.  passes in device #
-	void	TurnOn(boolean TurnOn);		//turn on/off flags and timers used to take readings at intervals
+	void	TurnOn(boolean TurnOn);		//turn on/off timers used to take readings at intervals
 	void	TestMode(boolean StartTesting);		// Preserves the state of IsOn while in testing mode.  If true, saves the state of IsOn, sets IsOn=true, and changes polling rate. If false, resumes prior state of IsOn and polling interval
 	void	ReadTempSensor(void);		// called at polling intervals, reads the temp sensor, and sets results and flags indicating a reading is ready for use
 	void	SetPollInterval(int Delay);	//sets the poll interval, changes the poll interval if sensor IsOn=true	//boolean Locate(void);				// locates the temp sensor at Saddr, returns true if found else false
@@ -2418,30 +2430,27 @@ void	TempSensor::TempSensorInit(byte SN)
 	else
 	{
 		dprint("Error, did not find temp sensor address");	//debug
-																	//add error log entry here
+		ErrorLog("Did not find temp sensor address in TempSensorInit for SN=", String(SN), 2); //' make error log entry 
 	}
 }
 //----------------------------------------------------------------------
-/*
+
 void	TempSensor::TurnOn(boolean TurnOn)
 {
-
 	//if true, set Turn on sampling 
 	if (TurnOn)
 	{
 		//if here, then we want to turn on the polling for taking temperature readings.  We use SensTmr object of the Timer class
-		//IsOn = true;	//flag that we are taking Temperature sensor readings
-		SensorPollContext = SensTmr.every(PollInterval, SensorPollRedirect, (void*)2);	// begin polling temp readings, call SensorPollRedirect at intervals of PollInterval. timer index = SensorPollContext
+		SensorPollContext = SensTmr.every(3000, SensorPollRedirect, (void*)2);	// begin polling temp readings, call SensorPollRedirect at intervals of PollInterval. timer index = SensorPollContext
 	}
 	else
 	{
 		// turn off polling for temperature sensor readings
-		//IsOn = false;	//flag that we are not taking temperature sensor readings
 		SensTmr.stop(SensorPollContext);	//turns off the poll timer for this context
 	}
 	TempSensReadDealyIsDone = false;		// flag used by soft interupt to read temp sensor.
 };
-*/
+
 //----------------------------------------------------------------------
 void	TempSensor::TestMode(boolean StartTesting)
 {
@@ -2826,7 +2835,7 @@ public:
 void H2Opumps::pumpInit(void)
 {
 	//initializes pump state variables to false
-	uPumpIsOn = lPumpInOn = false;
+	uPumpIsOn = lPumpInOn = true;
 }
 //----------------------------------------------------------------------
 void H2Opumps::SetPump(byte PumpNum, boolean TurnOn)
@@ -2946,23 +2955,28 @@ void setup()
 		Pumps,U-D---------CCCC,Pump:On/Off/Auto,U/D  Pumps@ Auto
 		action,menu,---Action---,Update  Cancel
 	*/
+	dprintln(F("Settings read from SysStat.txt"));
 	Display.DisplaySetup(mReadOnly, mUseSD, "SysStat", 9, DisplayBuf); // get settings from SysStat.txt  Will use the Display class to retrieve the values.  User can modify these via UI
 	Display.DisplayGetSetChrs(&tempString, "Temp", mget);	//get the string from the SysStat file for the line pertaining to the temp sensors
 	if (tempString == "On") { TempSensorsOn = true; } else {TempSensorsOn = false;}
+	dprint(F("temperature settings=")); dprintln(tempString);
 	Display.DisplayGetSetChrs(&tempString, "Flow", mget);	//get 
 	if (tempString == "On") { FlowSensorsOn = true; } else { FlowSensorsOn = false; }
+	dprint(F("flow sensor settings=")); dprintln(tempString);
 	Display.DisplayGetSetChrs(&tempString, "Wlvl", mget);
-	dprint(F("tempString for Wlvl=")); dprintln(tempString);
+	dprint(F("water level sensor settings=")); dprintln(tempString);
 	if (tempString == "On") { WaterLvlSensorsOn = true; } else { WaterLvlSensorsOn = false; }
 	Display.DisplayGetSetChrs(&tempString, "Relay", mget);
 	if (tempString == "On") { RelayBoardOn = true; } else { RelayBoardOn = false; }
+	dprint(F("relay board settings=")); dprintln(tempString);
 	Display.DisplayGetSetChrs(&PumpMode, "Pumps", mget);	//PumpMode = On, Off, or Auto
-	dprint(F("WaterLvlSensorsOn=")); dprintln(WaterLvlSensorsOn);
+	dprint(F("pump settings=")); dprintln(PumpMode);
 
 	// look up variables for the sensors that are on
 	if (TempSensorsOn)
 	{
 
+		dprintln(F("Setting up, Temperature sensors are on"));
 		//temp sensors are to be used, so set them up!
 		lcd.begin(16, 2);
 		lcd.clear();
@@ -3001,7 +3015,9 @@ void setup()
 		Display.DisplaySetup(mReadOnly, mUseSD, "TempRate", 3, DisplayBuf);	//get the display array into the buffer
 		Display.DisplayGetSetNum(&tempString, "rate", mget);				// read the polling rate
 		tempInt = tempString.toInt() * 1000;								//convert to integer polling rate and convert to ms.
+		TempSens0.TurnOn(true);												// turn on the soft interupt, set context needed for timer object
 		TempSens0.SetPollInterval(tempInt);									//sets the polling interval and begins polling
+		TempSens1.TurnOn(true);
 		TempSens1.SetPollInterval(tempInt);
 
 		// this sensor uses the polling set by TempSens.  TempSens uses a soft interupt which calls 'SensorPollRedirect', which in turn calls the class specific ReadTempSensor for each instance (tempSens 0 and 1).
@@ -3111,6 +3127,7 @@ void setup()
 			rate,U-D---------###-,--Sample Rate--,U/D   Every 300s
 			action,menu1,---Action---,Save_Changes   Cancel
 		*/
+		dprintln(F("Setting up, FlowSensors are on"));
 		Display.DisplaySetup(mReadOnly, mUseSD, "FlowEdit", 8, DisplayBuf);	//get display array from SD card into DisplayBuf
 		Display.DisplayGetSetChrs(&FlowSens.Flow1Name, "FlowName1", mget);	//get name of flow sensor 1 and save in object
 		Display.DisplayGetSetChrs(&FlowSens.Flow2Name, "FlowName2", mget);	//get name of flow sensor 2
@@ -3122,7 +3139,7 @@ void setup()
 		FlowSens.SetReadFlowInterval(tempString.toInt() * 1000);	//save the sampling rate in ms
 
 		FlowSens.FlowCalcSetup();		// set up the pins for reading
-		FlowSens.FlowStartStop(true);	// if global setting for turning on flow sensors is on, then enable soft interupts to measure flow.  Note, global settings loaded via SysStat.txt 	
+		FlowSens.FlowStartStop(true);	// Enables soft interupts to measure flow.  Note, global settings loaded via SysStat.txt 	
 	}
 	//--------------------------------------------------------------
 
@@ -3139,7 +3156,7 @@ void setup()
 			rate,U-D---------###-,--Sample Rate--,U/D   Every 300s
 			action,menu,---Action---,Update   Cancel
 		*/
-
+		dprintln(F("In Setup, Water level sensor is on"));
 		WaterSens.WaterLvlSensorInit();		//sets the pins up 
 		Display.DisplaySetup(mReadOnly, mUseSD, "H2OEdit", 9, DisplayBuf);	//get variables from SD into display array
 
@@ -3153,6 +3170,7 @@ void setup()
 		WaterSens.WaterLvlMid = tempString.toInt();
 
 		Display.DisplayGetSetNum(&tempString, "rate", mget);
+		WaterSens.TurnOn(true);	//turns on soft interupt to default sampling rate and gets context for timer class.
 		WaterSens.SetPollInterval(tempString.toInt() * 1000);	// convert sampling rate from sec to ms
 
 		// water level sensor is in use so let's test it....show user that it is working
@@ -4158,7 +4176,7 @@ void loop()
 		/* check the flags set by timers used for sensor management.  Each sensor will set a flag indicating if it is
 		ready to be processed
 		*/
-
+		
 		//-------------------------------------------Temp Sensors----------------------------
 		if (TempSens0.TempSensReady)
 		{
