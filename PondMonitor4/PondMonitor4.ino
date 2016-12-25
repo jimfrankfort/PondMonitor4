@@ -3128,7 +3128,7 @@ void setup()
 			action,menu1,---Action---,Save_Changes   Cancel
 		*/
 		dprintln(F("Setting up, FlowSensors are on"));
-		Display.DisplaySetup(mReadOnly, mUseSD, "FlowEdit", 8, DisplayBuf);	//get display array from SD card into DisplayBuf
+		Display.DisplaySetup(mReadOnly, mUseSD, "FlowEdit", 7, DisplayBuf);	//get display array from SD card into DisplayBuf
 		Display.DisplayGetSetChrs(&FlowSens.Flow1Name, "FlowName1", mget);	//get name of flow sensor 1 and save in object
 		Display.DisplayGetSetChrs(&FlowSens.Flow2Name, "FlowName2", mget);	//get name of flow sensor 2
 		Display.DisplayGetSetChrs(&tempString, "FlowWarn1", mget);	//get low flow warning threshold for sensor 1
@@ -3620,13 +3620,13 @@ void loop()
 					TempSens0.SetPollInterval(tempInt);					// set the polling interval for both temp sensors.
 					TempSens1.SetPollInterval(tempInt);
 					Display.DisplayWriteSD();							// save the display array on SD
-					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
+					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 2, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 				}
 				else
 					if (Display.DisplaySelection == "Cancel")
 					{
 						dprintln(F("TempRate-->Action-->Cancel"));	//debug					
-						Display.DisplaySetup(mReadWrite,mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
+						Display.DisplaySetup(mReadWrite,mUseSD, "tempsens", 2, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 					}
 					else
 					{
@@ -3697,7 +3697,7 @@ void loop()
 				else
 				if(Display.DisplaySelection=="Cancel")
 				{
-					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
+					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 2, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 				}
 				else
 				{
@@ -3765,12 +3765,12 @@ void loop()
 					Display.DisplayGetSetChrs(&TempSens1.SensHandle, "handle", mget); //read the sensor handle from the display into the class
 
 					Display.DisplayWriteSD();	// write the display containing TSens0 back to SD card.
-					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
+					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 2, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 				}
 				else
 					if (Display.DisplaySelection == "Cancel")
 					{
-						Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
+						Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 2, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 					}
 					else
 					{
@@ -3812,7 +3812,7 @@ void loop()
 					statusLEDs.SetGreenLED(true);
 					InTempSensTestMode = false;	// flag to end temp sens 0 testing
 					TempSens0.TestMode(false);		// sets the soft interupts and state variables for both TempSens0 AND TempSens1 for monitoring
-					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 4, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
+					Display.DisplaySetup(mReadWrite, mUseSD, "tempsens", 2, DisplayBuf); // return to the entry screen for temperature sensor display array and display the first line
 				}
 				else						
 				{
@@ -3843,7 +3843,7 @@ void loop()
 					if (Display.DisplaySelection == "Test_sensors")
 					{
 						dprint(F("FlowSens-->action1-->FlowTest"));	//debug
-						Display.DisplaySetup(mReadWrite, mUseSD, "FlowTest", 8, DisplayBuf);	//put up display array to test flow sensors.
+						Display.DisplaySetup(mReadWrite, mUseSD, "FlowTest", 7, DisplayBuf);	//put up display array to test flow sensors.
 					}
 					else
 						if (Display.DisplaySelection == "Cancel")
@@ -4044,6 +4044,10 @@ void loop()
 					Display.DisplayGetSetNum(&tempString, "rate", mget);
 					WaterSens.WaterLvlMid = tempString.toInt();
 					WaterSens.SetPollInterval(tempString.toInt() * 1000);	//set the new polling rate
+
+					//write the new settings to the SD card for use on next boot
+					Display.DisplayWriteSD();
+					Display.DisplaySetup(mReadWrite, mUseSD, "H2OLvl", 4, DisplayBuf);	// return to menu for water level sensor functions
 				}
 				else
 					if (Display.DisplaySelection == "Cancel")
