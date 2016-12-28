@@ -32,7 +32,7 @@
 #define dprintln2(p,u)
 #endif // DEBUG
 
-//#define DebugDisplayClass			// debug switch for display class
+#define DebugDisplayClass			// debug switch for display class
 #ifdef DebugDisplayClass
 #define ddcprint(p)	Serial.print(p)
 #define ddcprintln(p)	Serial.println(p)
@@ -831,18 +831,18 @@ void DisplayClass::DisplayLineSetup(String Mline)
 
 	This routine parses out the DisplayLineName, TemplateLine, Title, and DisplayLine.  It then displays the Title on the first row of the display, and the DisplayLine on the
 	second row of the display.  How the DisplayLine is processed is determined by the values in the TemplateLine.
-	If TemplateLine='Display' then the DisplayLine is a list of Display options and the DisplayMode=1. The DisplayLine processing handles the left and right keys, moving the Display options accordingly.  When the user selects an option,
+	If TemplateLine='menu'' then the DisplayLine is a list of Display options and the DisplayMode=1. The DisplayLine processing handles the left and right keys, moving the Display options accordingly.  When the user selects an option,
 	processing will return the DisplayLineName and DisplayOption, both of which can be used to direct logic.  The Display processing will change DisplayLines based on
 	the up and down buttons.  Details of DisplayLine and Display processing are addressed in appropriate areas of code.
 
 	If TemplateLine='text' then the DisplayLine is informational text and the DisplayMode=3.  Right and left keys scroll as needed.  Up and down move to other display lines in the display array.
 
-	If not "Display' or 'text', TemplateLine contains characters that support entry of date, time, numeric, and alpha numeric values and the DisplayMode=2
+	If not "menu' or 'text', TemplateLine contains characters that support entry of date, time, numeric, and alpha numeric values and the DisplayMode=2
 
 	For DisplayMode = 2: The displayline processing handles the left and right, moving the 'cursor' to the locations in the Display string for data entry.
 	Using the up and down buttons increments/decrements the date/time/#/chr element accordingly.
 
-	the select button works only in DisplayMode=1 (Display).  The intent of the display array is to combine Display lines +/- data entry.  One of the Display lines will contain
+	The select button works only in DisplayMode=1 (Display).  The intent of the display array is to combine Display lines +/- data entry.  One of the Display lines will contain
 	an option to 'continue', after which the routine hands off to the program logic.  There are public routines that allow logic to set or read the data entered
 	by the user.
 	*/
@@ -1436,7 +1436,7 @@ void DisplayClass::ProcessDisplay(int KeyID)
 			{
 				String tmpStr = DisplayLine;
 				ddcprint(F("@1438, DisplayLine=")); ddcprintln(tmpStr);
-				tmpStr.trim();	//trim the whitespace added as padding prior to updating the display array
+				//tmpStr.trim();	//trim the whitespace added as padding prior to updating the display array
 				ddcprint(F("@1438, trimmed DisplayLine=")); ddcprintln(tmpStr);
 								//change the entry			
 								//dprint("Before= |");dprint(DisplayPntr[DisplayIndex]);dprintln("|");	//debug					
@@ -1872,7 +1872,7 @@ void DisplayClass::CursorBlinkTimeInt(void)
 	{
 		// do not blank out the character under DisplayPos
 		lcd.print(DisplayLine.substring(DisplayStartPos, DisplayEndPos + 1));
-		ddcprint(F("@1871 unblinked displayline=")); ddcprintln(DisplayLine.substring(DisplayStartPos, DisplayEndPos+1));
+		ddcprint(F("@1875 unblinked displayline=")); ddcprintln(DisplayLine.substring(DisplayStartPos, DisplayEndPos+1));
 		Blank = true;
 	}
 }
@@ -2970,6 +2970,7 @@ void setup()
 	if (tempString == "On") { RelayBoardOn = true; } else { RelayBoardOn = false; }
 	dprint(F("relay board settings=")); dprintln(tempString);
 	Display.DisplayGetSetChrs(&PumpMode, "Pumps", mget);	//PumpMode = On, Off, or Auto
+	if ((PumpMode != "On") || (PumpMode != "Off") || (PumpMode != "Auto")) PumpMode = "Auto";	// corrects for user entry of invalid choice during prior edit.
 	dprint(F("pump settings=")); dprintln(PumpMode);
 
 	// look up variables for the sensors that are on
@@ -3401,6 +3402,7 @@ void loop()
 					dprintln(F("Pumps-->Pumps-->Off"));	//debug
 					pump.SetPump(uPump, pumpOff);
 					pump.SetPump(lPump, pumpOff);
+					PumpMode = "Off";	// change the global state for the pump mode so the water level sensors don't turn on/off the pumps
 					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
 				}
 				else
@@ -3409,6 +3411,7 @@ void loop()
 					dprintln(F("Pumps-->Pumps-->On"));	//debug
 					pump.SetPump(uPump, pumpOn);
 					pump.SetPump(lPump, pumpOn);
+					PumpMode = "On";	// change the global state for the pump mode so the water level sensors don't turn on/off the pumps
 					Display.DisplaySetup(mReadWrite, mUseSD, "Main_UI", 1, DisplayBuf); // Return to main-UI display array and display the first line
 				}
 				else
@@ -4211,7 +4214,7 @@ void loop()
 			MonitorLog("Water level sensor","",String(WaterSens.WaterLvl),WaterSens.WaterLvl,0,"",WaterSens.WaterLvlRange,0,0,"");
 
 			/*
-			Water sensor level range is used to turn on/off water pumps.  The water pump from the
+			Water sensor level range is used to turn on/off water pumps when the pumpmode='auto'.  The water pump from the
 			bottom of the pond is attached to relay 1, and the skimmer pump attached to relay 2.
 			Connections for both are in the normally closed position, so that when the relay is 'on',
 			the pump is turned off.  
@@ -4230,73 +4233,77 @@ void loop()
 			We use the prior state and current state to determine if the water level is increasing or decreasing. The code should work if there is a
 			sudden change in level....e.g. bump the filter with a wave :-)
 			*/
-
-			if ((WaterSens.WaterLvlRange == "none") && (WaterSens.PriorLvlRange == "none"))
+			if (PumpMode = "Auto")
 			{
-				//Starting with the assumption on no leak, so assume water level rising so we want both pumps circuits on
-				Relay.RelaySet(1, true);
-				Relay.RelaySet(2, true);	//skimmer on relay 2
-			}
-			else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low")) && (WaterSens.WaterLvlRange == "low"))
-			{
-				// water level rising so we want both pumps on
-				Relay.RelaySet(1, true);
-				Relay.RelaySet(2, true);	//skimmer on relay 2
-			}
-			else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low")) && WaterSens.WaterLvlRange == "mid")
-			{
-				// water level rising  and reached mid level, so we want to turn off the skimmer and leave the bottom on
-				Relay.RelaySet(1, true);
-				Relay.RelaySet(2, false);
-			}
-			else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low") || (WaterSens.PriorLvlRange == "mid")) && WaterSens.WaterLvlRange == "mid")
-			{
-				// water level rising  and still mid level, so we want to leave skimmer off
-				Relay.RelaySet(1, true);
-				Relay.RelaySet(2, false);	//skimmer on relay 2
-			}
-			else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low") || (WaterSens.PriorLvlRange == "mid")) && WaterSens.WaterLvlRange == "high")
-			{
-				// water level rising  and reached high level, so we want to turn off both pumps
-				Relay.RelaySet(1, false);
-				Relay.RelaySet(2, false);	//skimmer on relay 2
-			}
-			else if ((WaterSens.PriorLvlRange == "high") && (WaterSens.WaterLvlRange == "high"))
-			{
-				// water level high and still high so we want to leave both pumps off
-				Relay.RelaySet(1, false);
-				Relay.RelaySet(2, false);
-			}
-			else if ((WaterSens.PriorLvlRange == "high") && (WaterSens.WaterLvlRange == "mid"))
-			{
-				// water level was high and dropped to mid, so turn bottom pump on again
-				Relay.RelaySet(1, true);	// bottom pump on relay 1
-				Relay.RelaySet(2, false);
-			}
-			else if (((WaterSens.PriorLvlRange == "high") || (WaterSens.PriorLvlRange == "mid")) && (WaterSens.WaterLvlRange == "mid"))
-			{
-				// water level was high and dropped to mid and still at mid, so bottom pump on, skimmer off
-				Relay.RelaySet(1, true);
-				Relay.RelaySet(2, false);
-			}
-			else if (((WaterSens.PriorLvlRange == "high") || (WaterSens.PriorLvlRange == "mid")) && (WaterSens.WaterLvlRange == "low"))
-			{
-				// water level was up (high or mid) and dropped to low, so turn an both pumps
-				Relay.RelaySet(1, true);
-				Relay.RelaySet(2, true);
-			}
-			else if (((WaterSens.PriorLvlRange == "mid") || (WaterSens.PriorLvlRange == "low")) && (WaterSens.WaterLvlRange == "low"))
-			{
-				// water level was up (mid or low) and remains at low, so keep both pumps on
-				Relay.RelaySet(1, true);
-				Relay.RelaySet(2, true);
-			}
-			else if (((WaterSens.PriorLvlRange == "high") || (WaterSens.PriorLvlRange == "mid") || (WaterSens.PriorLvlRange == "low")) && (WaterSens.WaterLvlRange == "none"))
-			{
-				// water level was up and now at none, so filter is emptying, which could be due to a big leak, so turn off both pumps to prevent draining the pond
-				Relay.RelaySet(1, false);
-				Relay.RelaySet(2, false);
-				ErrorLog("Water level sensor suggests big leak, turning both pumps off","",3);	// log error, indicate most severe level			
+				//only change the on/off state of the pumps if the in the 'Auto' mode, which indicates that the water level sensor is controling the water pumps
+			
+				if ((WaterSens.WaterLvlRange == "none") && (WaterSens.PriorLvlRange == "none"))
+				{
+					//Starting with the assumption on no leak, so assume water level rising so we want both pumps circuits on
+					Relay.RelaySet(1, true);
+					Relay.RelaySet(2, true);	//skimmer on relay 2
+				}
+				else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low")) && (WaterSens.WaterLvlRange == "low"))
+				{
+					// water level rising so we want both pumps on
+					Relay.RelaySet(1, true);
+					Relay.RelaySet(2, true);	//skimmer on relay 2
+				}
+				else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low")) && WaterSens.WaterLvlRange == "mid")
+				{
+					// water level rising  and reached mid level, so we want to turn off the skimmer and leave the bottom on
+					Relay.RelaySet(1, true);
+					Relay.RelaySet(2, false);
+				}
+				else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low") || (WaterSens.PriorLvlRange == "mid")) && WaterSens.WaterLvlRange == "mid")
+				{
+					// water level rising  and still mid level, so we want to leave skimmer off
+					Relay.RelaySet(1, true);
+					Relay.RelaySet(2, false);	//skimmer on relay 2
+				}
+				else if (((WaterSens.PriorLvlRange == "none") || (WaterSens.PriorLvlRange == "low") || (WaterSens.PriorLvlRange == "mid")) && WaterSens.WaterLvlRange == "high")
+				{
+					// water level rising  and reached high level, so we want to turn off both pumps
+					Relay.RelaySet(1, false);
+					Relay.RelaySet(2, false);	//skimmer on relay 2
+				}
+				else if ((WaterSens.PriorLvlRange == "high") && (WaterSens.WaterLvlRange == "high"))
+				{
+					// water level high and still high so we want to leave both pumps off
+					Relay.RelaySet(1, false);
+					Relay.RelaySet(2, false);
+				}
+				else if ((WaterSens.PriorLvlRange == "high") && (WaterSens.WaterLvlRange == "mid"))
+				{
+					// water level was high and dropped to mid, so turn bottom pump on again
+					Relay.RelaySet(1, true);	// bottom pump on relay 1
+					Relay.RelaySet(2, false);
+				}
+				else if (((WaterSens.PriorLvlRange == "high") || (WaterSens.PriorLvlRange == "mid")) && (WaterSens.WaterLvlRange == "mid"))
+				{
+					// water level was high and dropped to mid and still at mid, so bottom pump on, skimmer off
+					Relay.RelaySet(1, true);
+					Relay.RelaySet(2, false);
+				}
+				else if (((WaterSens.PriorLvlRange == "high") || (WaterSens.PriorLvlRange == "mid")) && (WaterSens.WaterLvlRange == "low"))
+				{
+					// water level was up (high or mid) and dropped to low, so turn an both pumps
+					Relay.RelaySet(1, true);
+					Relay.RelaySet(2, true);
+				}
+				else if (((WaterSens.PriorLvlRange == "mid") || (WaterSens.PriorLvlRange == "low")) && (WaterSens.WaterLvlRange == "low"))
+				{
+					// water level was up (mid or low) and remains at low, so keep both pumps on
+					Relay.RelaySet(1, true);
+					Relay.RelaySet(2, true);
+				}
+				else if (((WaterSens.PriorLvlRange == "high") || (WaterSens.PriorLvlRange == "mid") || (WaterSens.PriorLvlRange == "low")) && (WaterSens.WaterLvlRange == "none"))
+				{
+					// water level was up and now at none, so filter is emptying, which could be due to a big leak, so turn off both pumps to prevent draining the pond
+					Relay.RelaySet(1, false);
+					Relay.RelaySet(2, false);
+					ErrorLog("Water level sensor suggests big leak, turning both pumps off","",3);	// log error, indicate most severe level			
+				}
 			}
 		}
 		//-------------------------------------------Flow Sensors----------------------------
